@@ -1,0 +1,34 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Rougeon backend (WEB and POS)",
+  "homepage": "https://github.com/BuddhimanAi-Clients/rougeon-backend-#readme",
+  "bugs": {
+    "url": "https://github.com/BuddhimanAi-Clients/rougeon-backend-/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BuddhimanAi-Clients/rougeon-backend-.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "npx tsc",
+    "start": "node dist/server.js"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "winston": "^3.19.0",
+    "zod": "^4.4.3"
+  }
+}
