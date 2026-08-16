@@ -8,7 +8,7 @@
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "nodenext",
-    "target": "esnext",
+    "target": "ES2023",
     "types": ["node"],
     // For nodejs:
     // "lib": ["esnext"],
@@ -17,6 +17,7 @@
 
     // Other Outputs
     "sourceMap": true,
+    "noEmitOnError": true,
     // "declaration": true,
     // "declarationMap": true,
 

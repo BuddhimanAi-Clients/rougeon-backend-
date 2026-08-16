@@ -20,6 +20,7 @@ Every person who can log in — customer, cashier, or admin — differentiated b
 | phone | string, nullable | mainly relevant for customers |
 | role | enum | `customer` / `cashier` / `admin` |
 | emailVerified | boolean | Better Auth field |
+| image | string, nullable | Better Auth profile-image field |
 | createdAt | datetime | |
 | updatedAt | datetime | |
 
@@ -30,8 +31,17 @@ Holds the password hash — kept separate from `User` so multiple login methods 
 |---|---|---|
 | id | PK | |
 | userId | FK → User.id | |
-| password | string | hashed |
+| accountId | string | user ID for credential accounts; provider account ID for future OAuth |
 | providerId | string | `"credential"` for email/password |
+| password | string, nullable | hashed; present for credential accounts |
+| accessToken | string, nullable | reserved for future providers |
+| refreshToken | string, nullable | reserved for future providers |
+| accessTokenExpiresAt | datetime, nullable | reserved for future providers |
+| refreshTokenExpiresAt | datetime, nullable | reserved for future providers |
+| scope | string, nullable | reserved for future providers |
+| idToken | string, nullable | reserved for future providers |
+| createdAt | datetime | Better Auth field |
+| updatedAt | datetime | Better Auth field |
 
 ### Session
 Created on login, tracks who's actively logged in.
@@ -44,6 +54,8 @@ Created on login, tracks who's actively logged in.
 | expiresAt | datetime | |
 | ipAddress | string, nullable | |
 | userAgent | string, nullable | |
+| createdAt | datetime | Better Auth field |
+| updatedAt | datetime | Better Auth field |
 
 ### Verification
 Generic temporary-token table — reused for both email verification and password reset.
@@ -54,6 +66,8 @@ Generic temporary-token table — reused for both email verification and passwor
 | identifier | string | typically the email |
 | value | string | the token |
 | expiresAt | datetime | |
+| createdAt | datetime | Better Auth field |
+| updatedAt | datetime | Better Auth field |
 
 ---
 
