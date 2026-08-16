@@ -1,0 +1,49 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "ROGUEON backend for Website, POS, and Admin",
+  "homepage": "https://github.com/BuddhimanAi-Clients/rougeon-backend-#readme",
+  "bugs": {
+    "url": "https://github.com/BuddhimanAi-Clients/rougeon-backend-/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BuddhimanAi-Clients/rougeon-backend-.git"
+  },
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "prisma generate && tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:validate": "prisma validate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio"
+  },
+  "engines": {
+    "node": ">=20.19 <21 || >=22.12 <23 || >=24 <25"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.13.3",
+    "prisma": "^6.19.3",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@better-auth/prisma-adapter": "^1.6.29",
+    "@prisma/client": "^6.19.3",
+    "better-auth": "^1.6.29",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "winston": "^3.19.0",
+    "zod": "^4.4.3"
+  }
+}

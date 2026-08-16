@@ -1,0 +1,18 @@
+info:
+  name: signOut
+  type: http
+  seq: 5
+
+http:
+  method: POST
+  url: "{{authBaseUrl}}/sign-out"
+  headers:
+    - name: Origin
+      value: http://localhost:5173
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

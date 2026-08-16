@@ -1,0 +1,10 @@
+info:
+  name: pos
+  type: folder
+  seq: 3
+
+request:
+  auth: inherit
+  variables:
+    - name: posBaseURL
+      value: "{{baseUrl}}/api/v1/pos"

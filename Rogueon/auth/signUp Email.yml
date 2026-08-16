@@ -1,0 +1,26 @@
+info:
+  name: signUp Email
+  type: http
+  seq: 2
+
+http:
+  method: POST
+  url: "{{authBaseUrl}}/sign-up/email"
+  headers:
+    - name: Origin
+      value: http://localhost:5173
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Test Customer",
+        "email": "customer2@example.com",
+        "password": "StrongPassword123!"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
