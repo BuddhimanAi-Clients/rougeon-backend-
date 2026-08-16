@@ -25,7 +25,6 @@ Before planning or implementing backend changes, read the documentation relevant
 3. `docs/flow.md` — application and business flows
 4. `docs/admin.md` — Admin API routes, modules and ownership
 5. `docs/pos.md` — POS API contract, modules and ownership
-6. `docs/current-milestone.md` — the current approved implementation scope
 
 For changes involving project foundations, authentication, database models or shared modules, read all six files.
 
