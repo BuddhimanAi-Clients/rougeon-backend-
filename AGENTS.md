@@ -37,17 +37,15 @@ Do not invent requirements that are not present in the documentation.
 
 ---
 
-## Current milestone
+## Task scope
 
-The current implementation scope is defined in:
+The active task scope is provided in the user's prompt.
 
-`docs/current-milestone.md`
+Only implement the explicitly requested modules and features.
 
-Read it before planning or modifying code.
+Do not expand into another module merely because it is documented.
 
-Do not implement anything listed as out of scope.
-
-Do not expand the milestone without explicit approval.
+Documentation describes the complete system, not the scope of every task.
 
 ---
 
