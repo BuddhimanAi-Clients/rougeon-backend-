@@ -26,7 +26,8 @@ Before planning or implementing backend changes, read the documentation relevant
 4. `docs/admin.md` — Admin API routes, modules and ownership
 5. `docs/pos.md` — POS API contract, modules and ownership
 
-For changes involving project foundations, authentication, database models or shared modules, read all six files.
+
+For changes involving project foundations, authentication, database models or shared modules, read all five files.
 
 If documentation conflicts with existing code, report the conflict before making changes.
 
@@ -140,7 +141,7 @@ Business modules follow this four-layer architecture:
 routes -> controller -> service -> repository
 ```
 
-Every business module should use the same structure unless the current milestone explicitly approves an exception.
+Every business module should use the same structure unless the user's task explicitly approves an exception.
 
 ### Routes
 
@@ -428,7 +429,7 @@ Authorization must be enforced by backend middleware and services, never only by
 
 ## Git and collaboration
 
-Keep changes scoped to the current milestone.
+Keep changes scoped to the task provided in the user's prompt.
 
 Do not modify unrelated files.
 
@@ -483,16 +484,15 @@ Do not modify `.gitignore` without first inspecting its existing rules.
 For substantial tasks:
 
 1. Read `AGENTS.md`.
-2. Read `docs/current-milestone.md`.
-3. Read the relevant product documentation.
-4. Inspect the existing implementation.
-5. Identify conflicts, missing requirements and assumptions.
-6. Propose the exact files to create or modify.
-7. Wait for approval when instructed not to edit yet.
-8. Implement only the approved scope.
-9. Run relevant verification commands.
-10. Review the resulting diff.
-11. Report results and unresolved issues.
+2. Read the relevant product documentation.
+3. Inspect the existing implementation.
+4. Identify conflicts, missing requirements and assumptions.
+5. Propose the exact files to create or modify when the task requests planning first.
+6. Wait for approval when instructed not to edit yet.
+7. Implement only the scope explicitly requested by the user.
+8. Run relevant verification commands.
+9. Review the resulting diff.
+10. Report results and unresolved issues.
 
 Do not claim a command passed unless it was actually executed successfully.
 
@@ -532,7 +532,7 @@ Docker Compose currently starts PostgreSQL and Redis. It does not necessarily st
 
 ## Testing expectations
 
-Add or update tests for changed behavior when test infrastructure exists or is part of the current milestone.
+Add or update tests for changed behavior when test infrastructure exists or testing is part of the requested task.
 
 Authentication and authorization testing should cover:
 
@@ -560,7 +560,7 @@ Business modules should test:
 
 ## Completion criteria
 
-Before reporting a milestone or implementation complete:
+Before reporting a task or implementation complete:
 
 * TypeScript compilation succeeds
 * The production build succeeds
@@ -570,7 +570,7 @@ Before reporting a milestone or implementation complete:
 * No secrets are tracked
 * No generated dependencies or build output are tracked
 * Relevant documentation is updated
-* The implementation stays within the current milestone
+* The implementation stays within the scope requested by the user
 * Changes do not unnecessarily block the POS developer
 * Remaining risks and unresolved decisions are reported
 

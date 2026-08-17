@@ -51,3 +51,6 @@ temp/
 
 # Local uploads
 uploads/
+
+# Test build output
+.test-dist/
