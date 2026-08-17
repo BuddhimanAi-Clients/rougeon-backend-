@@ -10,7 +10,7 @@ export const requireAuth: RequestHandler = async (request, _response, next) => {
       headers: fromNodeHeaders(request.headers),
     });
 
-    if (!session) {
+    if (!session || !session.user.isActive) {
       next(new AppError(401, 'UNAUTHORIZED', 'Authentication required'));
       return;
     }

@@ -46,6 +46,7 @@ A guest never has a `userId` anywhere in their request context — only a `sessi
 - POS sales log: view sales across staff/shifts.
 - Inventory: combined stock view + full `inventory_logs` audit trail.
 - Staff management: edit/deactivate staff, change roles.
+- Deactivating staff revokes sessions while preserving credentials and historical records; Admin can reactivate the same account later.
 
 ---
 

@@ -25,6 +25,7 @@ pnpm-debug.log*
 # Coverage
 coverage/
 .nyc_output/
+.test-dist/
 
 # TypeScript
 *.tsbuildinfo
