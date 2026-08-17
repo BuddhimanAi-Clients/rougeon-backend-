@@ -2,6 +2,7 @@ import type { ErrorRequestHandler } from 'express';
 import { envVariables } from '../../configs/env.config.js';
 import { logger } from '../../configs/logger.config.js';
 import { AppError } from './app-error.js';
+import { mapPrismaError } from './prisma-error.js';
 
 function isMalformedJsonError(error: unknown): error is SyntaxError & { status: 400 } {
   return (
@@ -33,6 +34,17 @@ export const errorHandler: ErrorRequestHandler = (
       error: {
         code: error.code,
         message: error.message,
+      },
+    });
+    return;
+  }
+
+  const prismaError = mapPrismaError(error);
+  if (prismaError) {
+    response.status(prismaError.statusCode).json({
+      error: {
+        code: prismaError.code,
+        message: prismaError.message,
       },
     });
     return;

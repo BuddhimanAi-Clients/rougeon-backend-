@@ -29,6 +29,7 @@ Every person who can log in — customer, cashier, or admin — differentiated b
 | email | string, unique | login identifier for everyone |
 | phone | string, nullable | mainly for customers |
 | role | enum | `customer` / `cashier` / `admin` |
+| isActive | boolean | account access state, defaults to `true` |
 | emailVerified | boolean | Better Auth field |
 | image | string, nullable | Better Auth profile-image field |
 | createdAt | datetime | |
