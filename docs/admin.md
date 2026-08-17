@@ -30,6 +30,7 @@ GET    /api/v1/admin/staffs              list all staff
 GET    /api/v1/admin/staffs/:id          get one staff's detail
 PATCH  /api/v1/admin/staffs/:id          update (name, role, etc.)
 DELETE /api/v1/admin/staffs/:id          deactivate/remove
+PATCH  /api/v1/admin/staffs/:id/reactivate reactivate a deactivated staff account
 ```
 
 ### Categories

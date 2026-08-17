@@ -89,6 +89,26 @@ npm run prisma:migrate:deploy
 npm run prisma:studio
 ```
 
+## Admin API
+
+All Admin routes are mounted under `/api/v1/admin` and require an authenticated
+`admin` session. The implemented modules are:
+
+- `/staffs` — staff creation, listing, update, deactivation, and reactivation
+- `/categories` — nested category CRUD and deterministic tree listing
+- `/products` and `/variants` — catalog and variant management
+- `/stock` — restock, manual adjustment, and immutable inventory logs
+- `/orders` — Website-order reporting, status changes, and payment verification
+- `/pos-sales` — read-only POS sale reporting
+- `/dashboards` — Website/POS sales totals and low-stock reporting
+
+Date-only Admin filters and dashboard ranges currently use UTC boundaries.
+
+Integration tests require `TEST_DATABASE_URL` to point to an isolated database
+or a schema whose name contains `test`. Apply the existing migrations to that
+test target before running `npm run test:integration`. Tests never use the
+development schema as a fallback.
+
 Do not run development migrations against production. Review generated migration
 SQL before applying it, and never commit `.env`, `node_modules`, `dist`, logs, or
 generated local artifacts.

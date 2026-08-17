@@ -22,6 +22,7 @@ const envSchema = z.object({
     )
     .pipe(z.array(z.url()).min(1)),
   DATABASE_URL: z.string().startsWith('postgresql://'),
+  TEST_DATABASE_URL: z.string().startsWith('postgresql://').optional(),
   BETTER_AUTH_SECRET: z.string().min(32),
   LOG_LEVEL: z
     .enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'])

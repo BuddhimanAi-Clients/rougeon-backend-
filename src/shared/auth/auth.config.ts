@@ -1,5 +1,6 @@
 import { prismaAdapter } from '@better-auth/prisma-adapter';
 import { betterAuth } from 'better-auth';
+import { APIError } from 'better-auth/api';
 import { prisma } from '../../configs/database.config.js';
 import { envVariables } from '../../configs/env.config.js';
 import { USER_ROLES } from './auth.types.js';
@@ -24,6 +25,25 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: 'postgresql',
   }),
+  databaseHooks: {
+    session: {
+      create: {
+        before: async (session) => {
+          const user = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { isActive: true },
+          });
+
+          if (!user?.isActive) {
+            throw APIError.from('FORBIDDEN', {
+              code: 'ACCOUNT_INACTIVE',
+              message: 'This account is inactive',
+            });
+          }
+        },
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
@@ -38,6 +58,12 @@ export const auth = betterAuth({
         type: [...USER_ROLES],
         required: true,
         defaultValue: 'customer',
+        input: false,
+      },
+      isActive: {
+        type: 'boolean',
+        required: true,
+        defaultValue: true,
         input: false,
       },
     },
