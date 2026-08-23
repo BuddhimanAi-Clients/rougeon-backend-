@@ -18,6 +18,11 @@ export type CreateSaleInput = {
   paymentMethod: PosPaymentMethod;
 };
 
+type SaleCreationResult = {
+  sale: Awaited<ReturnType<typeof createSaleWithItems>>;
+  needsReview: boolean;
+};
+
 function validateSaleItems(items: CreateSaleInput['items']): void {
   if (items.length === 0) {
     throw new AppError(422, 'EMPTY_POS_SALE', 'Sale must contain an item');
@@ -64,15 +69,16 @@ export async function getSaleDetail(saleId: string, staffId: string) {
   return sale;
 }
 
-export async function createSale(
+async function createSaleWithInventoryPolicy(
   staffId: string,
   input: CreateSaleInput,
-) {
+  allowNegativeStock: boolean,
+): Promise<SaleCreationResult> {
   validateSaleItems(input.items);
 
   const saleNumber = generateSaleNumber();
 
-  const sale = await prisma.$transaction(async (transaction) => {
+  return prisma.$transaction(async (transaction) => {
     const variantIds = input.items.map((item) => item.variantId);
 
     const variants = await getVariantsForSale(transaction, variantIds);
@@ -126,20 +132,29 @@ export async function createSale(
       left.variantId.localeCompare(right.variantId),
     );
 
+    let needsReview = false;
+
     for (const item of inventoryItems) {
-      await changeInventory({
+      const inventoryResult = await changeInventory({
         transaction,
         variantId: item.variantId,
         changeQty: -item.qty,
         reason: 'pos_sale',
         source: 'pos',
         referenceId: createdSale.id,
+        allowNegative: allowNegativeStock,
       });
+
+      if (inventoryResult.stockQty < 0) {
+        needsReview = true;
+      }
     }
 
-    return createdSale;
+    return { sale: createdSale, needsReview };
   });
+}
 
+function serializeSale(sale: SaleCreationResult['sale']) {
   return {
     ...sale,
     subtotal: sale.subtotal.toString(),
@@ -148,5 +163,25 @@ export async function createSale(
       ...item,
       price: item.price.toString(),
     })),
+  };
+}
+
+export async function createSale(
+  staffId: string,
+  input: CreateSaleInput,
+) {
+  const result = await createSaleWithInventoryPolicy(staffId, input, false);
+  return serializeSale(result.sale);
+}
+
+export async function createOfflineSale(
+  staffId: string,
+  input: CreateSaleInput,
+) {
+  const result = await createSaleWithInventoryPolicy(staffId, input, true);
+
+  return {
+    sale: serializeSale(result.sale),
+    needsReview: result.needsReview,
   };
 }

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../shared/auth/auth.middleware.js';
+import { syncRouter } from './offline-sync/sync.routes.js';
 import { salesRouter } from './sales/sales.routes.js';
 
 export const posRouter = Router();
@@ -14,3 +15,4 @@ posRouter.get('/', (_request, response) => {
 });
 
 posRouter.use('/sales', salesRouter);
+posRouter.use('/sync', syncRouter);
