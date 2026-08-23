@@ -1,3 +1,4 @@
+import { logger } from '../../configs/logger.config.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { createOfflineSale } from '../sales/sales.service.js';
 import type { SyncSalesBody } from './sync.schemas.js';
@@ -6,6 +7,7 @@ type SyncedSaleResult = {
   index: number;
   status: 'synced';
   needsReview: boolean;
+  replayed: boolean;
   sale: Awaited<ReturnType<typeof createOfflineSale>>['sale'];
 };
 
@@ -34,11 +36,17 @@ export async function syncQueuedSales(
     }
 
     try {
-      const result = await createOfflineSale(staffId, queuedSale);
+      const result = await createOfflineSale(staffId, {
+        clientSaleId: queuedSale.clientSaleId,
+        occurredAt: new Date(queuedSale.occurredAt),
+        items: queuedSale.items,
+        paymentMethod: queuedSale.paymentMethod,
+      });
       results.push({
         index,
         status: 'synced',
         needsReview: result.needsReview,
+        replayed: result.replayed,
         sale: result.sale,
       });
     } catch (error) {
@@ -53,6 +61,15 @@ export async function syncQueuedSales(
         });
         continue;
       }
+
+      logger.error('Unexpected POS offline sync error', {
+        staffId,
+        batchIndex: index,
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message, stack: error.stack }
+            : { message: 'Non-Error value thrown' },
+      });
 
       results.push({
         index,

@@ -14,7 +14,8 @@ applications.
 
 1. Copy `.env.example` to `.env` and replace `BETTER_AUTH_SECRET` with a unique,
    high-entropy value of at least 32 characters. Configure the public static QR
-   URL and merchant instructions used by Website checkout.
+   URL and merchant instructions used by Website checkout, plus `STORE_NAME`
+   and `STORE_ADDRESS` for POS receipts.
 2. Install dependencies:
 
    ```bash
@@ -141,3 +142,18 @@ which defaults to `150.00`. Checkout creates an `awaiting_proof` Payment but doe
 not reserve or decrement stock. Payment-proof media upload is deferred until a
 media provider is approved; Admin confirmation remains the only Website stock
 decrement operation.
+
+## POS API
+
+All POS routes require an authenticated `cashier` or `admin` session:
+
+- `POST /api/v1/pos/sales` — create an immediate paid sale
+- `GET /api/v1/pos/sales?page=1&limit=20` — list the current staff member's sales
+- `GET /api/v1/pos/sales/:id` — get an owned sale
+- `POST /api/v1/pos/sync` — retry-safe ordered offline-sale synchronization
+- `GET /api/v1/pos/receipts/:saleId` — immutable receipt data for an owned sale
+
+Authenticated cashier/admin requests to `GET /api/v1/products` receive exact
+variant `stockQty`; public and customer responses expose only `available`.
+Offline sync uses current database prices and requires a stable `clientSaleId`
+plus the original `occurredAt` timestamp for each queued sale.

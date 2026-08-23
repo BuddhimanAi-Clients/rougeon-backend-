@@ -14,6 +14,9 @@ function saleWhere(query: ListPosSalesQuery): Prisma.PosSaleWhereInput {
   return {
     ...(query.staffId ? { staffId: query.staffId } : {}),
     ...(query.paymentMethod ? { paymentMethod: query.paymentMethod } : {}),
+    ...(query.needsReview !== undefined
+      ? { needsReview: query.needsReview }
+      : {}),
     ...(query.saleNumber
       ? { saleNumber: { contains: query.saleNumber, mode: 'insensitive' as const } }
       : {}),
@@ -49,5 +52,12 @@ export function findPosSale(id: string) {
         orderBy: { id: 'asc' },
       },
     },
+  });
+}
+
+export function resolveReview(id: string) {
+  return prisma.posSale.updateMany({
+    where: { id, needsReview: true },
+    data: { needsReview: false },
   });
 }

@@ -9,3 +9,10 @@ export const listPosSales: RequestHandler = async (request, response) => {
 export const getPosSale: RequestHandler = async (request, response) => {
   response.status(200).json({ data: await posSalesService.getPosSale(validatedParams<PosSaleIdParams>(request).id) });
 };
+export const resolvePosSaleReview: RequestHandler = async (request, response) => {
+  response.status(200).json({
+    data: await posSalesService.resolvePosSaleReview(
+      validatedParams<PosSaleIdParams>(request).id,
+    ),
+  });
+};

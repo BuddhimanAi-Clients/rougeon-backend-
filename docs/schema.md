@@ -235,9 +235,12 @@ In-store sales — created together with their items in one atomic transaction.
 | id | PK | |
 | saleNumber | string, unique | simple incrementing counter, e.g. `SALE-0001` |
 | staffId | FK → User.id | |
+| clientSaleId | string, nullable, unique per staff | client-generated idempotency key for offline sales |
+| cashierName | string | cashier name snapshotted at sale time for immutable receipts |
 | subtotal | decimal | computed server-side from real variant prices, never trusted from the frontend |
 | total | decimal | |
 | paymentMethod | enum | `cash` / `qr` |
+| needsReview | boolean | persisted flag for offline sales that produce negative stock |
 | createdAt | datetime | |
 
 ### pos_sale_items
@@ -246,6 +249,10 @@ In-store sales — created together with their items in one atomic transaction.
 | id | PK | |
 | saleId | FK → pos_sales.id | |
 | variantId | FK → product_variants.id | |
+| productName | string | product name snapshotted at sale time |
+| variantSku | string | SKU snapshotted at sale time |
+| variantSize | string | size snapshotted at sale time |
+| variantColor | string | color snapshotted at sale time |
 | qty | integer | |
 | price | decimal | snapshotted at sale time |
 

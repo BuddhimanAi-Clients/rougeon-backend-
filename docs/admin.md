@@ -76,8 +76,9 @@ PATCH /api/v1/admin/orders/:id/verify-payment                confirm or reject a
 
 ### POS sales log (read-only)
 ```
-GET /api/v1/admin/pos-sales           list POS sales, across staff/shifts
+GET /api/v1/admin/pos-sales           list POS sales, across staff/shifts; supports needsReview=true|false
 GET /api/v1/admin/pos-sales/:id         one sale's detail
+PATCH /api/v1/admin/pos-sales/:id/resolve-review   clear a reviewed offline negative-stock flag
 ```
 
 ### Dashboards
