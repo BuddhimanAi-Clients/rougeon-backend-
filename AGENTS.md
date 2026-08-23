@@ -25,9 +25,9 @@ Before planning or implementing backend changes, read the documentation relevant
 3. `docs/flow.md` — application and business flows
 4. `docs/admin.md` — Admin API routes, modules and ownership
 5. `docs/pos.md` — POS API contract, modules and ownership
+6. `docs/web.md` — Website API routes, guest/customer behavior, checkout and payment-proof flow
 
-
-For changes involving project foundations, authentication, database models or shared modules, read all five files.
+For changes involving project foundations, authentication, database models or shared modules, read all six files.
 
 If documentation conflicts with existing code, report the conflict before making changes.
 
@@ -49,25 +49,26 @@ Documentation describes the complete system, not the scope of every task.
 
 ---
 
-## Developer ownership
+## Implementation status and ownership
 
-The current developer owns:
+The backend foundation, shared authentication, Admin API and POS API are implemented.
 
-* Backend foundation and configuration
-* `src/configs/`
+The current developer owns ongoing work in:
+
+* `src/configs/` when Website/shared configuration requires it
 * `src/shared/`
-* `src/admin/`
 * `src/web/`
+* `prisma/` schema and migrations within the approved Website/shared scope
 
-Another backend developer owns:
+The completed POS implementation is owned by another backend developer:
 
 * `src/pos/`
 
-Do not implement or modify POS business functionality unless explicitly requested.
+Treat `src/admin/` and `src/pos/` as completed compatibility boundaries. Do not modify their business behavior unless the user's task explicitly requires a compatible integration change or defect fix.
 
-Reading POS code and documentation is allowed when necessary to understand shared contracts or prevent breaking changes.
+Reading Admin and POS code is allowed and expected when necessary to understand shared contracts or prevent regressions.
 
-Changes to authentication, database models, inventory contracts, shared product contracts or other shared interfaces must remain compatible with the POS developer’s work.
+Changes to authentication, database models, inventory contracts, shared product contracts or other shared interfaces must remain compatible with both completed Admin and POS behavior.
 
 Before changing a shared contract, explain:
 
@@ -86,9 +87,9 @@ The intended top-level source ownership is:
 src/
 ├── configs/    # environment, logger and application configuration
 ├── shared/     # shared authentication, products and inventory logic
-├── admin/      # Admin API
-├── pos/        # POS API, owned by the other backend developer
-├── web/        # Website API
+├── admin/      # completed Admin API
+├── pos/        # completed POS API, owned by the other backend developer
+├── web/        # Website cart, wishlist, addresses, checkout, orders and payments
 ├── app.ts      # Express application construction and router mounting
 └── server.ts   # application startup and server listening
 ```
@@ -118,6 +119,7 @@ For example:
 ```ts
 app.use("/api/v1/admin", adminRouter);
 app.use("/api/v1/pos", posRouter);
+app.use("/api/v1", webRouter);
 ```
 
 Avoid duplicating route prefixes inside child routers.
@@ -232,6 +234,19 @@ Do not log:
 * Authentication secrets
 * Reset or verification tokens
 
+### Guest Website context
+
+Website guests are identified by a separate opaque cookie such as `guest_session_id`. This cookie is not a Better Auth session and must never be treated as authenticated identity.
+
+For Website requests, resolve identity in this order:
+
+1. Use a valid Better Auth session when present.
+2. Otherwise use or issue the guest-session cookie.
+
+The raw guest token must not be accepted from request bodies or query parameters. Use a secure random value, an HTTP-only cookie, and a stored hash for guest cart/order ownership.
+
+When a guest logs in, merge the guest cart into the authenticated customer's cart through an explicit, atomic operation.
+
 ---
 
 ## Database and Prisma
@@ -258,6 +273,17 @@ Do not delete or reset a development or production database unless explicitly au
 
 Generated Prisma clients and generated build output must not be committed unless the repository explicitly requires them.
 
+For Website implementation, preserve these approved data rules:
+
+* Guest orders store a nullable guest-session identifier/hash so the same guest can securely view the order and upload proof.
+* Payment attempts support `awaiting_proof`, `pending_verification`, `success`, and `failed`.
+* Payments record creation/update timestamps.
+* Cart items are unique by `(cartId, variantId)`.
+* Wishlist items are unique by `(userId, variantId)`.
+* A cart belongs to exactly one authenticated user or one guest session, never both or neither.
+* Orders snapshot delivery information used at checkout.
+* Order items snapshot product/variant display information and price used at checkout.
+
 ---
 
 ## Transactions
@@ -275,8 +301,11 @@ Examples of operations that will require transaction review include:
 * Updating stock and creating an inventory log
 * Verifying a payment and changing an order
 * Creating a product variant with initial stock
+* Creating a Website order, order items and initial payment attempt while consuming the cart
 
 Do not perform part of a transaction through the normal Prisma client and another part through a transaction client.
+
+Website checkout must lock the resolved cart, re-read its items inside the transaction, create the order, item snapshots and initial payment attempt, then clear the cart atomically. A second concurrent checkout against the same cart must not create a duplicate order.
 
 ---
 
@@ -299,6 +328,8 @@ Shared inventory logic must support consistent:
 * Transaction participation
 
 Live sales and offline POS synchronization may have different insufficient-stock rules. Follow the finalized documentation and report conflicts instead of assuming behavior.
+
+Website checkout validates stock but does not decrement it. Website stock is revalidated and decremented only when an Admin confirms payment, using the existing shared inventory transaction. Do not introduce stock reservation or checkout-time deduction unless explicitly requested.
 
 ---
 
@@ -361,6 +392,8 @@ When adding or changing environment variables:
 * Update `.env.example`
 * Update setup documentation when necessary
 * Never add real secrets to `.env.example`
+
+Website checkout receives static QR payment configuration from validated backend environment variables. Keep the QR image itself in object/media storage and configure only its URL and public merchant instructions in the backend. Do not hardcode payment configuration in frontend responses or persist the image binary in PostgreSQL.
 
 Local `.env` files must not be committed.
 
@@ -425,6 +458,10 @@ Do not implement custom cryptography when an approved library already handles it
 
 Authorization must be enforced by backend middleware and services, never only by a frontend interface.
 
+Guest order reads and payment-proof uploads must compare the current guest-cookie hash with the order's stored guest-session identifier. Possession of an order ID or order number alone is not authorization.
+
+Payment-proof uploads must validate file type and size, use the approved media-storage integration, and store only the resulting URL/metadata in PostgreSQL.
+
 ---
 
 ## Git and collaboration
@@ -433,7 +470,7 @@ Keep changes scoped to the task provided in the user's prompt.
 
 Do not modify unrelated files.
 
-Do not modify POS-owned business files without explicit approval.
+Do not modify completed Admin- or POS-owned business files without explicit approval or a required compatibility fix that has been explained first.
 
 Do not overwrite another developer’s changes.
 
@@ -546,6 +583,18 @@ Authentication and authorization testing should cover:
 * Cashier allowed on POS routes
 * Admin allowed on Admin routes
 * Admin allowed on POS routes
+
+Website identity and ownership testing should cover:
+
+* Guest cookie creation and reuse
+* Guest and authenticated cart isolation
+* Guest-cart merge after login
+* Guest order access with the matching cookie
+* Guest order denial with a different or missing cookie
+* Authenticated order ownership
+* Wishlist and saved-address authentication
+* Payment-proof ownership and state transitions
+* Duplicate/concurrent checkout protection
 
 Business modules should test:
 

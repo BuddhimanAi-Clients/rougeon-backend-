@@ -262,7 +262,18 @@ test('complete Admin API contract', async (context) => {
         guestPhone: '9800000000',
         guestFullAddress: 'Test address',
         guestCity: 'Kathmandu',
-        items: { create: { variantId, qty: 1, price: new Prisma.Decimal('100.00') } },
+        items: {
+          create: {
+            variantId,
+            productName: 'Updated Shirt',
+            productImageUrl: 'https://example.com/shirt.jpg',
+            variantSku: 'SHIRT-M-BLK',
+            variantSize: 'M',
+            variantColor: 'Charcoal',
+            qty: 1,
+            price: new Prisma.Decimal('100.00'),
+          },
+        },
         payments: { create: { method: 'qr', status: PaymentStatus.pending_verification, amount: new Prisma.Decimal('100.00') } },
       },
     });
