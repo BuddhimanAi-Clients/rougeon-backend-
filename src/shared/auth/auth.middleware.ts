@@ -22,6 +22,22 @@ export const requireAuth: RequestHandler = async (request, _response, next) => {
   }
 };
 
+export const optionalAuth: RequestHandler = async (request, _response, next) => {
+  try {
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(request.headers),
+    });
+
+    if (session?.user.isActive) {
+      request.auth = session;
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 export function requireRole(allowedRoles: readonly UserRole[]): RequestHandler {
   return (request, _response, next) => {
     if (!request.auth) {

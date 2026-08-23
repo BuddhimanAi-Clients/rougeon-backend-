@@ -7,6 +7,8 @@ import { posRouter } from './pos/pos.routes.js';
 import { auth } from './shared/auth/auth.config.js';
 import { errorHandler } from './shared/errors/error.middleware.js';
 import { notFoundHandler } from './shared/errors/not-found.middleware.js';
+import { sharedProductRouter } from './shared/products/product.routes.js';
+import { webRouter } from './web/web.routes.js';
 
 const app = express();
 
@@ -37,6 +39,8 @@ app.get('/api/v1/health', healthHandler);
 
 app.use('/api/v1/admin', adminRouter);
 app.use('/api/v1/pos', posRouter);
+app.use('/api/v1', sharedProductRouter);
+app.use('/api/v1', webRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

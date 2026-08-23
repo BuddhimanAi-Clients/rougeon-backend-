@@ -16,3 +16,9 @@ if (!/test/i.test(schema) && !/test/i.test(databaseName)) {
 
 process.env.NODE_ENV = 'test';
 process.env.DATABASE_URL = testDatabaseUrl;
+process.env.SHIPPING_FEE ??= '150.00';
+process.env.PAYMENT_QR_IMAGE_URL ??= 'https://cdn.example.com/test-payment-qr.png';
+process.env.PAYMENT_PROVIDER_NAME ??= 'Test Bank';
+process.env.PAYMENT_ACCOUNT_NAME ??= 'ROGUEON Test';
+process.env.PAYMENT_ACCOUNT_IDENTIFIER ??= 'TEST-ACCOUNT';
+process.env.PAYMENT_INSTRUCTIONS ??= 'Pay the exact test amount.';
