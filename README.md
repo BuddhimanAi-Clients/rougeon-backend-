@@ -13,7 +13,8 @@ applications.
 ## Local setup
 
 1. Copy `.env.example` to `.env` and replace `BETTER_AUTH_SECRET` with a unique,
-   high-entropy value of at least 32 characters.
+   high-entropy value of at least 32 characters. Configure the public static QR
+   URL and merchant instructions used by Website checkout.
 2. Install dependencies:
 
    ```bash
@@ -112,3 +113,31 @@ development schema as a fallback.
 Do not run development migrations against production. Review generated migration
 SQL before applying it, and never commit `.env`, `node_modules`, `dist`, logs, or
 generated local artifacts.
+
+## Website API
+
+Public routes:
+
+- `GET /api/v1/categories`
+- `GET /api/v1/products`
+- `GET /api/v1/products/:slug`
+
+Guest/customer routes:
+
+- `/api/v1/cart` and `/api/v1/cart/items/*`
+- `POST /api/v1/cart/merge` (customer session required)
+- `POST /api/v1/checkout`
+- `GET /api/v1/orders/:id`
+- `GET /api/v1/orders/:id/payment-instructions`
+
+Customer-only routes:
+
+- `/api/v1/wishlist/*`
+- `/api/v1/addresses/*`
+- `GET /api/v1/orders`
+
+Website checkout currently applies the backend-configured flat `SHIPPING_FEE`,
+which defaults to `150.00`. Checkout creates an `awaiting_proof` Payment but does
+not reserve or decrement stock. Payment-proof media upload is deferred until a
+media provider is approved; Admin confirmation remains the only Website stock
+decrement operation.

@@ -3,6 +3,10 @@ import { z } from 'zod';
 
 dotenv.config({ quiet: true });
 
+const moneySchema = z
+  .string()
+  .regex(/^\d{1,10}(?:\.\d{1,2})?$/, 'Must be a non-negative amount with at most two decimal places');
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
@@ -24,6 +28,12 @@ const envSchema = z.object({
   DATABASE_URL: z.string().startsWith('postgresql://'),
   TEST_DATABASE_URL: z.string().startsWith('postgresql://').optional(),
   BETTER_AUTH_SECRET: z.string().min(32),
+  SHIPPING_FEE: moneySchema.default('150.00'),
+  PAYMENT_QR_IMAGE_URL: z.url(),
+  PAYMENT_PROVIDER_NAME: z.string().trim().min(1).max(120),
+  PAYMENT_ACCOUNT_NAME: z.string().trim().min(1).max(180),
+  PAYMENT_ACCOUNT_IDENTIFIER: z.string().trim().min(1).max(180),
+  PAYMENT_INSTRUCTIONS: z.string().trim().min(1).max(1_000),
   LOG_LEVEL: z
     .enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'])
     .default('debug'),
