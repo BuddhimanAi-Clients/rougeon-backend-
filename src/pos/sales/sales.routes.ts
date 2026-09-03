@@ -7,6 +7,7 @@ import {
 } from './sales.controller.js';
 import {
   createSaleBodySchema,
+  listSalesQuerySchema,
   saleIdParamsSchema,
 } from './sales.schemas.js';
 
@@ -18,7 +19,11 @@ salesRouter.post(
   createSaleController,
 );
 
-salesRouter.get('/', listSales);
+salesRouter.get(
+  '/',
+  validateRequest({ query: listSalesQuerySchema }),
+  listSales,
+);
 
 salesRouter.get(
   '/:id',

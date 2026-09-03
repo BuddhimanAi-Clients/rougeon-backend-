@@ -22,3 +22,5 @@ process.env.PAYMENT_PROVIDER_NAME ??= 'Test Bank';
 process.env.PAYMENT_ACCOUNT_NAME ??= 'ROGUEON Test';
 process.env.PAYMENT_ACCOUNT_IDENTIFIER ??= 'TEST-ACCOUNT';
 process.env.PAYMENT_INSTRUCTIONS ??= 'Pay the exact test amount.';
+process.env.STORE_NAME ??= 'ROGUEON Test Store';
+process.env.STORE_ADDRESS ??= 'Test Store Address';

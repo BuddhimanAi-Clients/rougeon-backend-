@@ -8,6 +8,10 @@ export const listPosSalesQuerySchema = z
     ...paginationQueryFields,
     staffId: z.string().trim().min(1).max(128).optional(),
     paymentMethod: z.enum(PosPaymentMethod).optional(),
+    needsReview: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .optional(),
     saleNumber: z.string().trim().min(1).max(120).optional(),
     from: z.iso.date().optional(),
     to: z.iso.date().optional(),

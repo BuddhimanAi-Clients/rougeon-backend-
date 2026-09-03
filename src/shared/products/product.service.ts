@@ -14,7 +14,10 @@ function imageUrls(images: Prisma.JsonValue) {
     : [];
 }
 
-export function toPublicProduct(product: NonNullable<PublicProductRecord>) {
+export function toPublicProduct(
+  product: NonNullable<PublicProductRecord>,
+  includeExactStock = false,
+) {
   const variants = product.variants.map((variant) => ({
     id: variant.id,
     sku: variant.sku,
@@ -22,6 +25,7 @@ export function toPublicProduct(product: NonNullable<PublicProductRecord>) {
     color: variant.color,
     price: variant.price.toFixed(2),
     available: variant.stockQty > 0,
+    ...(includeExactStock ? { stockQty: variant.stockQty } : {}),
   }));
   const prices = product.variants.map((variant) => variant.price);
   const firstPrice = prices[0];
@@ -46,15 +50,22 @@ export function toPublicProduct(product: NonNullable<PublicProductRecord>) {
   };
 }
 
-export async function getPublicProducts(query: PublicProductListQuery) {
+export async function getPublicProducts(
+  query: PublicProductListQuery,
+  includeExactStock = false,
+) {
   const { products, total } = await productRepository.listPublicProducts(query);
-  return paginatedResult(products.map(toPublicProduct), total, query);
+  return paginatedResult(
+    products.map((product) => toPublicProduct(product, includeExactStock)),
+    total,
+    query,
+  );
 }
 
-export async function getPublicProduct(slug: string) {
+export async function getPublicProduct(slug: string, includeExactStock = false) {
   const product = await productRepository.findPublicProductBySlug(slug);
   if (!product) {
     throw new AppError(404, 'PRODUCT_NOT_FOUND', 'Product was not found');
   }
-  return toPublicProduct(product);
+  return toPublicProduct(product, includeExactStock);
 }

@@ -34,6 +34,8 @@ const envSchema = z.object({
   PAYMENT_ACCOUNT_NAME: z.string().trim().min(1).max(180),
   PAYMENT_ACCOUNT_IDENTIFIER: z.string().trim().min(1).max(180),
   PAYMENT_INSTRUCTIONS: z.string().trim().min(1).max(1_000),
+  STORE_NAME: z.string().trim().min(1).max(180),
+  STORE_ADDRESS: z.string().trim().min(1).max(300),
   LOG_LEVEL: z
     .enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'])
     .default('debug'),

@@ -1,16 +1,20 @@
 import type { Request, RequestHandler } from 'express';
 import { AppError } from '../../shared/errors/app-error.js';
-import { validatedBody } from '../../shared/validation/validation.middleware.js';
-import type { CreateSaleBody } from './sales.schemas.js';
+import {
+  validatedBody,
+  validatedParams,
+  validatedQuery,
+} from '../../shared/validation/validation.middleware.js';
+import type {
+  CreateSaleBody,
+  ListSalesQuery,
+  SaleIdParams,
+} from './sales.schemas.js';
 import {
   createSale,
   getSaleDetail,
   listSalesForStaff,
 } from './sales.service.js';
-
-type SaleParams = {
-  id: string;
-};
 
 function getAuthenticatedStaffId(request: Request): string {
   const staffId = request.auth?.user.id;
@@ -25,22 +29,25 @@ function getAuthenticatedStaffId(request: Request): string {
 export const listSales: RequestHandler = async (request, response, next) => {
   try {
     const staffId = getAuthenticatedStaffId(request);
-    const sales = await listSalesForStaff(staffId);
+    const sales = await listSalesForStaff(
+      staffId,
+      validatedQuery<ListSalesQuery>(request),
+    );
 
-    response.status(200).json({ data: sales });
+    response.status(200).json(sales);
   } catch (error) {
     next(error);
   }
 };
 
-export const getSale: RequestHandler<SaleParams> = async (
+export const getSale: RequestHandler = async (
   request,
   response,
   next,
 ) => {
   try {
     const staffId = getAuthenticatedStaffId(request);
-    const saleId = request.params.id;
+    const { id: saleId } = validatedParams<SaleIdParams>(request);
     const sale = await getSaleDetail(saleId, staffId);
 
     response.status(200).json({ data: sale });

@@ -6,4 +6,9 @@ import { listPosSalesQuerySchema, posSaleIdParamsSchema } from './pos-sales-log.
 export const posSalesLogRouter = Router();
 
 posSalesLogRouter.get('/', validateRequest({ query: listPosSalesQuerySchema }), posSalesController.listPosSales);
+posSalesLogRouter.patch(
+  '/:id/resolve-review',
+  validateRequest({ params: posSaleIdParamsSchema }),
+  posSalesController.resolvePosSaleReview,
+);
 posSalesLogRouter.get('/:id', validateRequest({ params: posSaleIdParamsSchema }), posSalesController.getPosSale);

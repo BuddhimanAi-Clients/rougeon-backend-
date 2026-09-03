@@ -316,10 +316,21 @@ test('complete Admin API contract', async (context) => {
       data: {
         saleNumber: 'POS-TEST-1',
         staffId: cashier.id,
+        cashierName: 'cashier Test',
         subtotal: new Prisma.Decimal('50.00'),
         total: new Prisma.Decimal('50.00'),
         paymentMethod: 'cash',
-        items: { create: { variantId, qty: 1, price: new Prisma.Decimal('50.00') } },
+        items: {
+          create: {
+            variantId,
+            productName: 'Updated Shirt',
+            variantSku: 'SHIRT-M-BLK',
+            variantSize: 'M',
+            variantColor: 'Charcoal',
+            qty: 1,
+            price: new Prisma.Decimal('50.00'),
+          },
+        },
       },
     });
     assert.equal((await api('/api/v1/admin/pos-sales?saleNumber=POS-TEST', { cookie: admin.cookie })).body.pagination.total, 1);
