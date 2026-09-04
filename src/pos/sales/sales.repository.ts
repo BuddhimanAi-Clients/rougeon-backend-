@@ -96,8 +96,8 @@ export function lockSaleVariants(
   transaction: Prisma.TransactionClient,
   variantIds: string[],
 ) {
-  return transaction.$queryRaw<{ id: string }[]>(Prisma.sql`
-    SELECT "id"
+  return transaction.$queryRaw<{ id: string; stockQty: number }[]>(Prisma.sql`
+    SELECT "id", "stockQty"
     FROM "product_variants"
     WHERE "id" IN (${Prisma.join(variantIds)})
     ORDER BY "id"

@@ -85,3 +85,7 @@ export function clearCart(
 ) {
   return transaction.cartItem.deleteMany({ where: { cartId } });
 }
+
+export function findActivePaymentQrConfiguration(transaction: Prisma.TransactionClient) {
+  return transaction.paymentQrConfiguration.findFirst({ where: { isActive: true }, orderBy: { activatedAt: 'desc' } });
+}

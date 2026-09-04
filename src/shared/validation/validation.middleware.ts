@@ -8,6 +8,13 @@ type RequestSchemas = {
   query?: ZodType;
 };
 
+function issueFields(issues: ReadonlyArray<{ path: PropertyKey[]; message: string }>) {
+  return Object.fromEntries(issues.map((issue) => [
+    issue.path.length > 0 ? issue.path.join('.') : 'request',
+    issue.message,
+  ]));
+}
+
 function formatIssues(issues: ReadonlyArray<{ path: PropertyKey[]; message: string }>) {
   return issues
     .map((issue) => {
@@ -34,6 +41,7 @@ export function validateRequest(schemas: RequestSchemas): RequestHandler {
             400,
             'VALIDATION_ERROR',
             formatIssues(result.error.issues),
+            issueFields(result.error.issues),
           ),
         );
         return;

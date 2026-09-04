@@ -96,6 +96,13 @@ export function findOrder(id: string) {
   return prisma.order.findUnique({ where: { id }, include: orderDetailInclude });
 }
 
+export function findPaymentProof(orderId: string, paymentId: string) {
+  return prisma.payment.findFirst({
+    where: { id: paymentId, orderId, screenshotObjectKey: { not: null } },
+    select: { screenshotObjectKey: true, screenshotMimeType: true },
+  });
+}
+
 export function runOrderTransaction<T>(
   operation: (transaction: Prisma.TransactionClient) => Promise<T>,
 ) {

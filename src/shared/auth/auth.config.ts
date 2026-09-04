@@ -4,6 +4,7 @@ import { APIError } from 'better-auth/api';
 import { prisma } from '../../configs/database.config.js';
 import { envVariables } from '../../configs/env.config.js';
 import { USER_ROLES } from './auth.types.js';
+import { sendAuthEmail } from '../email/email.service.js';
 
 export const auth = betterAuth({
   appName: 'ROGUEON',
@@ -11,17 +12,7 @@ export const auth = betterAuth({
   basePath: '/api/v1/auth',
   secret: envVariables.BETTER_AUTH_SECRET,
   trustedOrigins: envVariables.CORS_ORIGINS,
-  disabledPaths: [
-    '/sign-in/social',
-    '/link-social',
-    '/unlink-account',
-    '/get-access-token',
-    '/refresh-token',
-    '/request-password-reset',
-    '/reset-password',
-    '/send-verification-email',
-    '/verify-email',
-  ],
+  disabledPaths: ['/sign-in/social', '/link-social', '/unlink-account', '/get-access-token', '/refresh-token'],
   database: prismaAdapter(prisma, {
     provider: 'postgresql',
   }),
@@ -47,6 +38,15 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
+    sendResetPassword: async ({ user, url }) => {
+      void sendAuthEmail({ to: user.email, subject: 'Reset your ROGUEON password', text: `Reset your password: ${url}`, html: `<p>Use this link to reset your ROGUEON password:</p><p><a href="${url}">Reset password</a></p>` });
+    },
+  },
+  emailVerification: {
+    sendOnSignUp: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      void sendAuthEmail({ to: user.email, subject: 'Verify your ROGUEON email', text: `Verify your email: ${url}`, html: `<p>Verify your ROGUEON email address:</p><p><a href="${url}">Verify email</a></p>` });
+    },
   },
   user: {
     additionalFields: {

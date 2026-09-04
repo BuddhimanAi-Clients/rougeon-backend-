@@ -23,7 +23,7 @@ export function findCategory(id: string) {
 }
 
 export function createProduct(input: CreateProductBody) {
-  return prisma.product.create({ data: input, include: { category: true, variants: true } });
+  return prisma.product.create({ data: input, include: { category: true, variants: true, media: { orderBy: { sortOrder: 'asc' } } } });
 }
 
 export async function listProducts(query: ListProductsQuery) {
@@ -31,7 +31,7 @@ export async function listProducts(query: ListProductsQuery) {
   return prisma.$transaction([
     prisma.product.findMany({
       where,
-      include: { category: true, _count: { select: { variants: true } } },
+    include: { category: true, media: { orderBy: { sortOrder: 'asc' } }, _count: { select: { variants: true } } },
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       ...paginationArgs(query),
     }),
@@ -42,7 +42,7 @@ export async function listProducts(query: ListProductsQuery) {
 export function findProduct(id: string) {
   return prisma.product.findUnique({
     where: { id },
-    include: { category: true, variants: { orderBy: [{ sku: 'asc' }, { id: 'asc' }] } },
+    include: { category: true, media: { orderBy: { sortOrder: 'asc' } }, variants: { orderBy: [{ sku: 'asc' }, { id: 'asc' }] } },
   });
 }
 
@@ -57,7 +57,7 @@ export function updateProduct(id: string, input: UpdateProductBody) {
   return prisma.product.update({
     where: { id },
     data,
-    include: { category: true, variants: { orderBy: { sku: 'asc' } } },
+    include: { category: true, media: { orderBy: { sortOrder: 'asc' } }, variants: { orderBy: { sku: 'asc' } } },
   });
 }
 
@@ -65,6 +65,29 @@ export function archiveProduct(id: string) {
   return prisma.product.update({
     where: { id },
     data: { status: ProductStatus.archived },
-    include: { category: true, variants: { orderBy: { sku: 'asc' } } },
+    include: { category: true, media: { orderBy: { sortOrder: 'asc' } }, variants: { orderBy: { sku: 'asc' } } },
+  });
+}
+
+export function findProductImage(productId: string, imageId: string) {
+  return prisma.productImage.findFirst({ where: { id: imageId, productId } });
+}
+
+export function addProductImages(productId: string, images: Array<{ objectKey: string; publicUrl: string; detectedMimeType: string; byteSize: number; sortOrder: number }>) {
+  return prisma.$transaction(async (transaction) => {
+    await transaction.productImage.createMany({ data: images.map((image) => ({ ...image, productId })) });
+    const all = await transaction.productImage.findMany({ where: { productId }, orderBy: { sortOrder: 'asc' } });
+    return transaction.product.update({ where: { id: productId }, data: { images: all.map((image) => image.publicUrl) }, include: { category: true, media: { orderBy: { sortOrder: 'asc' } }, variants: true } });
+  });
+}
+
+export function removeProductImage(productId: string, imageId: string) {
+  return prisma.$transaction(async (transaction) => {
+    const image = await transaction.productImage.findFirst({ where: { id: imageId, productId } });
+    if (!image) return null;
+    await transaction.productImage.delete({ where: { id: image.id } });
+    const all = await transaction.productImage.findMany({ where: { productId }, orderBy: { sortOrder: 'asc' } });
+    await transaction.product.update({ where: { id: productId }, data: { images: all.map((item) => item.publicUrl) } });
+    return image;
   });
 }

@@ -7,7 +7,7 @@ const productFields = {
   name: z.string().trim().min(1).max(180),
   slug: z.string().trim().min(1).max(200).regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   description: z.string().trim().min(1).max(20_000),
-  images: z.array(z.url()).max(20),
+  images: z.array(z.url()).max(20).default([]),
   status: z.enum(ProductStatus),
 };
 

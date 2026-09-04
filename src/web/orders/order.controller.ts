@@ -13,7 +13,7 @@ import * as orderService from './order.service.js';
 export const listOrders: RequestHandler = async (request, response) => {
   response.status(200).json(
     await orderService.getCustomerOrders(
-      request.auth!.user.id,
+      websiteOwner(request),
       validatedQuery<ListCustomerOrdersQuery>(request),
     ),
   );

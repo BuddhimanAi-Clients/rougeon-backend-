@@ -6,8 +6,10 @@ import {
   PaymentStatus,
 } from '@prisma/client';
 import { AppError } from '../../shared/errors/app-error.js';
+import { envVariables } from '../../configs/env.config.js';
 import { paginatedResult } from '../../shared/http/pagination.js';
 import { changeInventory } from '../../shared/inventory/inventory.service.js';
+import { getPrivateObject } from '../../shared/media/media.service.js';
 import type { ListOrdersQuery, UpdateOrderStatusBody } from './orders-admin.schemas.js';
 import * as orderRepository from './orders-admin.repository.js';
 
@@ -33,7 +35,27 @@ export async function getPendingPayments(query: ListOrdersQuery) {
 export async function getOrder(id: string) {
   const order = await orderRepository.findOrder(id);
   if (!order) throw new AppError(404, 'ORDER_NOT_FOUND', 'Order was not found');
-  return order;
+  return withPrivateProofUrls(order);
+}
+
+function withPrivateProofUrls<T extends { id: string; payments: Array<{ id: string; screenshotObjectKey: string | null; screenshotUrl: string | null }> }>(order: T) {
+  return {
+    ...order,
+    payments: order.payments.map((payment) => ({
+      ...payment,
+      screenshotUrl: payment.screenshotObjectKey
+        ? `${envVariables.SERVER_URL.replace(/\/$/, '')}/api/v1/admin/orders/${order.id}/payments/${payment.id}/proof`
+        : payment.screenshotUrl,
+    })),
+  };
+}
+
+export async function getPaymentProof(orderId: string, paymentId: string) {
+  const payment = await orderRepository.findPaymentProof(orderId, paymentId);
+  if (!payment?.screenshotObjectKey) {
+    throw new AppError(404, 'PAYMENT_PROOF_NOT_FOUND', 'Payment proof was not found');
+  }
+  return getPrivateObject(payment.screenshotObjectKey);
 }
 
 export async function updateOrderStatus(id: string, input: UpdateOrderStatusBody) {
