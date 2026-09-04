@@ -16,8 +16,8 @@ export const orderRouter = Router();
 
 orderRouter.get(
   '/',
-  requireAuth,
-  requireRole(['customer']),
+  optionalAuth,
+  resolveWebsiteContext,
   validateRequest({ query: listCustomerOrdersQuerySchema }),
   orderController.listOrders,
 );

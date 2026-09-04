@@ -128,6 +128,10 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
 
     const shippingFee = new Prisma.Decimal(envVariables.SHIPPING_FEE);
     const total = subtotal.plus(shippingFee);
+    const qrConfiguration = await checkoutRepository.findActivePaymentQrConfiguration(transaction);
+    if (!qrConfiguration) {
+      throw new AppError(503, 'PAYMENT_CONFIGURATION_UNAVAILABLE', 'Online payment instructions are not configured. Please try again later.');
+    }
     const order = await checkoutRepository.createOrder(transaction, {
       orderNumber: createOrderNumber(),
       status: OrderStatus.pending,
@@ -143,6 +147,7 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
           method: WebPaymentMethod.qr,
           status: PaymentStatus.awaiting_proof,
           amount: total,
+          qrConfigurationId: qrConfiguration.id,
         },
       },
     });
@@ -166,7 +171,7 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
         amount: payment.amount.toFixed(2),
         createdAt: payment.createdAt,
       },
-      paymentInstructions: paymentInstructions(order),
+      paymentInstructions: paymentInstructions(order, qrConfiguration),
     };
   });
 }

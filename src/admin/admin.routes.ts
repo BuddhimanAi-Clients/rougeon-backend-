@@ -8,6 +8,7 @@ import { productRouter } from './products/product.routes.js';
 import { staffRouter } from './staffs/staff.routes.js';
 import { stockRouter } from './stock/stock.routes.js';
 import { variantRouter } from './variants/variant.routes.js';
+import { paymentSettingsRouter } from './payment-settings/payment-settings.routes.js';
 
 export const adminRouter = Router();
 
@@ -21,3 +22,4 @@ adminRouter.use('/stock', stockRouter);
 adminRouter.use('/orders', ordersAdminRouter);
 adminRouter.use('/pos-sales', posSalesLogRouter);
 adminRouter.use('/dashboards', dashboardRouter);
+adminRouter.use('/payment-settings', paymentSettingsRouter);

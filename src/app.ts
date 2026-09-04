@@ -5,6 +5,7 @@ import { adminRouter } from './admin/admin.routes.js';
 import { envVariables } from './configs/env.config.js';
 import { posRouter } from './pos/pos.routes.js';
 import { auth } from './shared/auth/auth.config.js';
+import { authEmailRateLimit } from './shared/auth/auth-rate-limit.middleware.js';
 import { errorHandler } from './shared/errors/error.middleware.js';
 import { notFoundHandler } from './shared/errors/not-found.middleware.js';
 import { sharedProductRouter } from './shared/products/product.routes.js';
@@ -26,7 +27,7 @@ app.use(
 );
 
 // Better Auth must receive the untouched request body.
-app.all('/api/v1/auth/*splat', toNodeHandler(auth));
+app.all('/api/v1/auth/*splat', authEmailRateLimit, toNodeHandler(auth));
 
 app.use(express.json({ limit: '1mb' }));
 

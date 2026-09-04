@@ -48,10 +48,10 @@ function orderResponse(order: OrderRecord) {
 }
 
 export async function getCustomerOrders(
-  userId: string,
+  owner: CartOwner,
   query: ListCustomerOrdersQuery,
 ) {
-  const [orders, total] = await orderRepository.listCustomerOrders(userId, query);
+  const [orders, total] = await orderRepository.listCustomerOrders(owner, query);
   return paginatedResult(orders.map(orderResponse), total, query);
 }
 
@@ -82,5 +82,8 @@ export async function getPaymentInstructions(id: string, owner: CartOwner) {
       'Order is not eligible for payment instructions',
     );
   }
-  return paymentInstructions(order);
+  if (!currentPayment?.qrConfiguration) {
+    throw new AppError(503, 'PAYMENT_CONFIGURATION_UNAVAILABLE', 'Payment instructions are unavailable for this order');
+  }
+  return paymentInstructions(order, currentPayment.qrConfiguration);
 }

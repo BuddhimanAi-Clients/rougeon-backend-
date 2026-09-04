@@ -17,6 +17,7 @@ const orderInclude = Prisma.validator<Prisma.OrderInclude>()({
       paidAt: true,
       createdAt: true,
       updatedAt: true,
+      qrConfiguration: { select: { publicUrl: true, providerName: true, accountName: true, accountIdentifier: true, instructions: true } },
     },
     orderBy: [{ createdAt: 'desc' as const }, { id: 'desc' as const }],
   },
@@ -27,11 +28,11 @@ export type WebsiteOrderRecord = Prisma.OrderGetPayload<{
 }>;
 
 export async function listCustomerOrders(
-  userId: string,
+  owner: CartOwner,
   query: ListCustomerOrdersQuery,
 ) {
   const where: Prisma.OrderWhereInput = {
-    userId,
+    ...('userId' in owner ? { userId: owner.userId } : { userId: null, guestSessionId: owner.sessionId }),
     ...(query.status ? { status: query.status } : {}),
   };
   return prisma.$transaction([

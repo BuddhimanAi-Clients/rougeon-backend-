@@ -13,9 +13,10 @@ applications.
 ## Local setup
 
 1. Copy `.env.example` to `.env` and replace `BETTER_AUTH_SECRET` with a unique,
-   high-entropy value of at least 32 characters. Configure the public static QR
-   URL and merchant instructions used by Website checkout, plus `STORE_NAME`
-   and `STORE_ADDRESS` for POS receipts.
+   high-entropy value of at least 32 characters. Configure Cloudflare R2 for
+   product images and the administrator-managed checkout QR, Resend for
+   transactional auth emails, plus `STORE_NAME` and `STORE_ADDRESS` for POS
+   receipts.
 2. Install dependencies:
 
    ```bash
@@ -63,11 +64,10 @@ the `postgres` service on port `5432`.
 - Admin boundary: `/api/v1/admin/*` (`admin` only)
 - POS boundary: `/api/v1/pos/*` (`cashier` or `admin`)
 
-Email verification and password-reset email delivery are intentionally disabled
-until an email provider is selected. The Better Auth verification table is
-already present so those flows can be added without redesigning authentication.
-Social-login and token-refresh routes are also disabled; the active login method
-is email and password only.
+Email verification and password-reset delivery use Resend when its environment
+variables are configured. In local development without Resend, requests still
+complete but the email is intentionally not sent. Social-login and token-refresh
+routes are disabled; the active login method is email and password only.
 
 Self-service email signup always creates a `customer`. The API does not accept a
 client-supplied role. Until the Admin staff-management milestone is implemented,
@@ -101,6 +101,7 @@ All Admin routes are mounted under `/api/v1/admin` and require an authenticated
 - `/products` and `/variants` — catalog and variant management
 - `/stock` — restock, manual adjustment, and immutable inventory logs
 - `/orders` — Website-order reporting, status changes, and payment verification
+- `/payment-settings` — QR image/history management; exactly one configuration is active
 - `/pos-sales` — read-only POS sale reporting
 - `/dashboards` — Website/POS sales totals and low-stock reporting
 
@@ -128,8 +129,9 @@ Guest/customer routes:
 - `/api/v1/cart` and `/api/v1/cart/items/*`
 - `POST /api/v1/cart/merge` (customer session required)
 - `POST /api/v1/checkout`
-- `GET /api/v1/orders/:id`
+- `GET /api/v1/orders` and `GET /api/v1/orders/:id` (authenticated users or the same guest browser)
 - `GET /api/v1/orders/:id/payment-instructions`
+- `POST /api/v1/orders/:id/payment-proof` (JPEG, PNG, or WebP, up to 8 MB)
 
 Customer-only routes:
 
@@ -138,10 +140,11 @@ Customer-only routes:
 - `GET /api/v1/orders`
 
 Website checkout currently applies the backend-configured flat `SHIPPING_FEE`,
-which defaults to `150.00`. Checkout creates an `awaiting_proof` Payment but does
-not reserve or decrement stock. Payment-proof media upload is deferred until a
-media provider is approved; Admin confirmation remains the only Website stock
-decrement operation.
+which defaults to `150.00`. It requires an active payment QR configuration and
+snapshots it on the payment attempt. Checkout creates an `awaiting_proof`
+Payment but does not reserve or decrement stock; Admin confirmation remains the
+only Website stock decrement operation. Payment screenshots are stored privately
+and are available only through an authenticated Admin proof endpoint.
 
 ## POS API
 

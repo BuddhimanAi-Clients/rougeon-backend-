@@ -195,7 +195,7 @@ async function createSaleWithInventoryPolicy(
       const lockOrderedVariantIds = [...variantIds].sort((left, right) =>
         left.localeCompare(right),
       );
-      await lockSaleVariants(transaction, lockOrderedVariantIds);
+      const lockedVariants = await lockSaleVariants(transaction, lockOrderedVariantIds);
       const variants = await getVariantsForSale(transaction, variantIds);
 
       if (variants.length !== variantIds.length) {
@@ -209,6 +209,16 @@ async function createSaleWithInventoryPolicy(
       const variantById = new Map(
         variants.map((variant) => [variant.id, variant]),
       );
+      const stockByVariantId = new Map(lockedVariants.map((variant) => [variant.id, variant.stockQty]));
+      if (!allowNegativeStock) {
+        for (const item of input.items) {
+          const stockQty = stockByVariantId.get(item.variantId);
+          const variant = variantById.get(item.variantId);
+          if (stockQty !== undefined && stockQty < item.qty) {
+            throw new AppError(409, 'INSUFFICIENT_STOCK', `Only ${stockQty} units of ${variant?.sku ?? 'this variant'} remain.`);
+          }
+        }
+      }
 
       const saleItems = input.items.map((item) => {
         const variant = variantById.get(item.variantId);

@@ -12,6 +12,12 @@ export const listPendingPayments: RequestHandler = async (request, response) => 
 export const getOrder: RequestHandler = async (request, response) => {
   response.status(200).json({ data: await orderService.getOrder(validatedParams<OrderIdParams>(request).id) });
 };
+export const getPaymentProof: RequestHandler = async (request, response) => {
+  const { id, paymentId } = request.params as { id: string; paymentId: string };
+  const proof = await orderService.getPaymentProof(id, paymentId);
+  response.type(proof.contentType);
+  (proof.body as NodeJS.ReadableStream).pipe(response);
+};
 export const updateOrderStatus: RequestHandler = async (request, response) => {
   response.status(200).json({
     data: await orderService.updateOrderStatus(
