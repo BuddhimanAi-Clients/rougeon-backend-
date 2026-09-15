@@ -5,6 +5,6 @@ import type { BirthdayQuery, CustomerDirectoryQuery } from '../../shared/custome
 import * as directory from '../../shared/customers/directory.service.js';
 import * as service from './customer.service.js';
 export const list: RequestHandler = async (request, response) => response.json(await directory.listCustomers(validatedQuery<CustomerDirectoryQuery>(request)));
-export const birthdays: RequestHandler = async (request, response) => response.json(await directory.birthdays(validatedQuery<BirthdayQuery>(request)));
+export const birthdays: RequestHandler = async (request, response) => response.json(await directory.birthdays({ ...validatedQuery<BirthdayQuery>(request), mode: 'today' }));
 export const getOne: RequestHandler = async (request, response) => response.json({ data: await directory.getCustomer(validatedParams<{ id: string }>(request).id) });
 export const correct: RequestHandler = async (request, response) => response.json({ data: await service.correct(validatedParams<{ id: string }>(request).id, validatedBody<CustomerProfileInput>(request)) });
