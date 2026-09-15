@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+import { envVariables } from '../../configs/env.config.js';
 import { AppError } from '../errors/app-error.js';
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
@@ -6,6 +7,10 @@ const WINDOW_MS = 15 * 60 * 1_000;
 const MAX_ATTEMPTS = 5;
 
 export const authEmailRateLimit: RequestHandler = (request, _response, next) => {
+  if (envVariables.NODE_ENV !== 'production') {
+    next();
+    return;
+  }
   const emailEndpoints = ['/request-password-reset', '/send-verification-email'];
   if (!emailEndpoints.some((endpoint) => request.path.endsWith(endpoint))) {
     next();
