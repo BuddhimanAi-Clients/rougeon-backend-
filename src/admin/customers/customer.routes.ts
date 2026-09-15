@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import { validateRequest } from '../../shared/validation/validation.middleware.js';
+import { customerDirectoryQuerySchema, customerIdParamsSchema, birthdayQuerySchema } from '../../shared/customers/directory.schemas.js';
+import { customerProfileInputSchema } from '../../shared/customers/customer.schemas.js';
+import * as controller from './customer.controller.js';
+export const adminCustomerRouter = Router();
+adminCustomerRouter.get('/birthdays', validateRequest({ query: birthdayQuerySchema }), controller.birthdays);
+adminCustomerRouter.get('/', validateRequest({ query: customerDirectoryQuerySchema }), controller.list);
+adminCustomerRouter.get('/:id', validateRequest({ params: customerIdParamsSchema }), controller.getOne);
+adminCustomerRouter.patch('/:id', validateRequest({ params: customerIdParamsSchema, body: customerProfileInputSchema }), controller.correct);

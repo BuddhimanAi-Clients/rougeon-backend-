@@ -29,6 +29,10 @@ const envSchema = z.object({
   TEST_DATABASE_URL: z.string().startsWith('postgresql://').optional(),
   BETTER_AUTH_SECRET: z.string().min(32),
   SHIPPING_FEE: moneySchema.default('150.00'),
+  NCM_API_BASE_URL: z.url().optional(),
+  NCM_API_TOKEN: z.string().trim().min(1).optional(),
+  NCM_WEBHOOK_SECRET: z.string().trim().min(32).optional(),
+  NCM_DEFAULT_PICKUP_BRANCH: z.string().trim().min(1).max(120).optional(),
   // Legacy static QR fields remain optional while existing installations move
   // to the Admin-managed QR configuration table.
   PAYMENT_QR_IMAGE_URL: z.url().optional(),
@@ -43,7 +47,13 @@ const envSchema = z.object({
   R2_PUBLIC_BASE_URL: z.url().optional(),
   RESEND_API_KEY: z.string().trim().min(1).optional(),
   RESEND_FROM_EMAIL: z.string().trim().email().optional(),
+  // Development defaults to console-only email. Set to resend only when
+  // deliberately testing a real Resend integration from localhost.
+  EMAIL_DELIVERY_MODE: z.enum(['console', 'resend']).optional(),
   WEB_APP_URL: z.url().optional(),
+  REDIS_URL: z.string().url().optional(),
+  BUSINESS_TIMEZONE: z.string().trim().min(1).default('Asia/Kathmandu'),
+  EMAIL_OUTBOX_ENCRYPTION_KEY: z.string().trim().min(32).optional(),
   STORE_NAME: z.string().trim().min(1).max(180),
   STORE_ADDRESS: z.string().trim().min(1).max(300),
   LOG_LEVEL: z

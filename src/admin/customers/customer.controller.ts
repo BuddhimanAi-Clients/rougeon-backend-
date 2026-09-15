@@ -1,0 +1,10 @@
+import type { RequestHandler } from 'express';
+import { validatedBody, validatedParams, validatedQuery } from '../../shared/validation/validation.middleware.js';
+import type { CustomerProfileInput } from '../../shared/customers/customer.schemas.js';
+import type { BirthdayQuery, CustomerDirectoryQuery } from '../../shared/customers/directory.schemas.js';
+import * as directory from '../../shared/customers/directory.service.js';
+import * as service from './customer.service.js';
+export const list: RequestHandler = async (request, response) => response.json(await directory.listCustomers(validatedQuery<CustomerDirectoryQuery>(request)));
+export const birthdays: RequestHandler = async (request, response) => response.json(await directory.birthdays(validatedQuery<BirthdayQuery>(request)));
+export const getOne: RequestHandler = async (request, response) => response.json({ data: await directory.getCustomer(validatedParams<{ id: string }>(request).id) });
+export const correct: RequestHandler = async (request, response) => response.json({ data: await service.correct(validatedParams<{ id: string }>(request).id, validatedBody<CustomerProfileInput>(request)) });

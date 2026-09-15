@@ -43,6 +43,14 @@ applications.
    npm run dev
    ```
 
+6. In deployments that send transactional email, start the durable email worker separately:
+
+   ```bash
+   npm run worker:email
+   ```
+
+   Configure `REDIS_URL`, `EMAIL_OUTBOX_ENCRYPTION_KEY`, and the existing Resend variables. Redis jobs carry only an outbox ID; temporary Better Auth action links are encrypted in the database outbox and removed after delivery.
+
 The Node application runs on the host, so the default PostgreSQL URL uses
 `localhost:5433`. A Node application running inside Compose would instead use
 the `postgres` service on port `5432`.
@@ -65,8 +73,9 @@ the `postgres` service on port `5432`.
 - POS boundary: `/api/v1/pos/*` (`cashier` or `admin`)
 
 Email verification and password-reset delivery use Resend when its environment
-variables are configured. In local development without Resend, requests still
-complete but the email is intentionally not sent. Social-login and token-refresh
+variables are configured. Local development defaults to console-only email; set
+`EMAIL_DELIVERY_MODE=resend` alongside Resend and Redis credentials to deliberately
+test real email delivery from localhost. Social-login and token-refresh
 routes are disabled; the active login method is email and password only.
 
 Self-service email signup always creates a `customer`. The API does not accept a

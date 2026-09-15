@@ -44,6 +44,7 @@ enum OrderStatus {
 
 enum WebPaymentMethod {
   qr
+  cod
 }
 
 enum OrderPaymentStatus {
@@ -64,9 +65,65 @@ enum PosPaymentMethod {
   qr
 }
 
+// Refunds are completed manually by staff (there is no payment-provider payout API).
+enum RefundStatus {
+  pending
+  completed
+}
+
 enum PaymentQrConfigurationEventType {
   activated
   deactivated
+}
+
+enum PreferredCalendar {
+  AD
+  BS
+}
+
+enum CustomerProfileState {
+  active
+  legacy_unlinked
+  reconciliation_required
+}
+
+enum MembershipSignupStatus {
+  pending_verification
+  linked
+  conflict
+}
+
+enum MembershipAccrualSource {
+  pos_sale
+  web_order
+}
+
+enum EmailOutboxStatus {
+  pending
+  queued
+  sending
+  sent
+  failed
+  expired
+}
+
+enum EmailKind {
+  auth_verification
+  auth_password_reset
+  pos_receipt
+  web_order_confirmation
+  web_payment_receipt
+  web_delivery_receipt
+}
+
+enum ShipmentCarrier {
+  nepal_can_move
+}
+
+enum ShipmentBookingStatus {
+  pending
+  booked
+  failed
 }
 
 model User {
@@ -76,6 +133,7 @@ model User {
   emailVerified    Boolean        @default(false)
   image            String?
   phone            String?
+  pendingMembershipProfile String?
   role             UserRole       @default(customer)
   isActive         Boolean        @default(true)
   createdAt        DateTime       @default(now())
@@ -91,6 +149,9 @@ model User {
   uploadedQrConfigurations PaymentQrConfiguration[] @relation("QrConfigurationUploader")
   activatedQrConfigurations PaymentQrConfiguration[] @relation("QrConfigurationActivator")
   qrConfigurationEvents PaymentQrConfigurationEvent[]
+  customerProfile CustomerProfile?
+  membershipSignupClaim MembershipSignupClaim?
+  membershipTierAudits MembershipTierAudit[]
 
   @@map("users")
 }
@@ -282,26 +343,44 @@ model Order {
   id                String             @id @default(cuid())
   orderNumber       String             @unique
   userId            String?
+  customerProfileId String?
   guestSessionId    String?
   status            OrderStatus
   subtotal          Decimal            @db.Decimal(12, 2)
   shippingFee       Decimal            @db.Decimal(12, 2)
   total             Decimal            @db.Decimal(12, 2)
+  advancePaymentAmount Decimal         @default(0) @db.Decimal(12, 2)
+  codCollectionAmount Decimal          @default(0) @db.Decimal(12, 2)
+  codMerchandiseAdvancePercent Decimal @default(0) @db.Decimal(5, 2)
+  merchandiseDiscount Decimal          @default(0) @db.Decimal(12, 2)
+  membershipDiscountPercent Decimal    @default(0) @db.Decimal(5, 2)
+  membershipTierSnapshot Json?
   paymentMethod     WebPaymentMethod
   paymentStatus     OrderPaymentStatus
+  refundStatus      RefundStatus?
+  refundAmount      Decimal?           @db.Decimal(12, 2)
+  refundReason      String?            @db.Text
+  refundRequestedAt DateTime?
+  refundCompletedAt DateTime?
+  refundReference   String?
   shippingAddressId String?
   guestName         String?
+  guestEmail        String?
   guestPhone        String?
   guestFullAddress  String?            @db.Text
   guestCity         String?
   trackingRef       String?
   createdAt         DateTime           @default(now())
   user              User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerProfile   CustomerProfile?   @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
   shippingAddress   Address?           @relation(fields: [shippingAddressId], references: [id], onDelete: SetNull)
   items             OrderItem[]
   payments          Payment[]
+  membershipAccrual MembershipAccrual?
+  shipment         Shipment?
 
   @@index([userId])
+  @@index([customerProfileId])
   @@index([guestSessionId])
   @@index([status])
   @@index([paymentStatus])
@@ -355,6 +434,49 @@ model Payment {
   @@map("payments")
 }
 
+model Shipment {
+  id                 String                @id @default(cuid())
+  orderId            String                @unique
+  carrier            ShipmentCarrier       @default(nepal_can_move)
+  carrierOrderId     String?               @unique
+  bookingStatus      ShipmentBookingStatus @default(pending)
+  pickupBranch       String
+  destinationBranch  String
+  deliveryType       String                @default("Door2Door")
+  packageDescription String?               @db.Text
+  weightGrams        Int?
+  carrierCharge      Decimal?              @db.Decimal(12, 2)
+  collectionAmount   Decimal                @default(0) @db.Decimal(12, 2)
+  carrierStatus      String?
+  carrierStatusAt    DateTime?
+  bookingError       String?               @db.Text
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  order              Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  events             ShipmentEvent[]
+
+  @@index([bookingStatus])
+  @@index([carrierStatusAt])
+  @@map("shipments")
+}
+
+model ShipmentEvent {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  event       String
+  status      String
+  occurredAt  DateTime?
+  receivedAt  DateTime @default(now())
+  payloadHash String
+  rawPayload  Json
+  isTest      Boolean  @default(false)
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([shipmentId, payloadHash])
+  @@index([shipmentId, occurredAt])
+  @@map("shipment_events")
+}
+
 model PaymentQrConfiguration {
   id                String   @id @default(cuid())
   objectKey         String   @unique
@@ -365,6 +487,7 @@ model PaymentQrConfiguration {
   accountName       String?
   accountIdentifier String?
   instructions      String?
+  codMerchandiseAdvancePercent Decimal @default(0) @db.Decimal(5, 2)
   isActive          Boolean  @default(false)
   uploadedById      String
   activatedById     String?
@@ -397,18 +520,25 @@ model PosSale {
   id            String           @id @default(cuid())
   saleNumber    String           @unique
   staffId       String
+  customerProfileId String?
   clientSaleId  String?
   cashierName   String
   subtotal      Decimal          @db.Decimal(12, 2)
+  merchandiseDiscount Decimal    @default(0) @db.Decimal(12, 2)
+  membershipDiscountPercent Decimal @default(0) @db.Decimal(5, 2)
+  membershipTierSnapshot Json?
   total         Decimal          @db.Decimal(12, 2)
   paymentMethod PosPaymentMethod
   needsReview   Boolean          @default(false)
   createdAt     DateTime         @default(now())
   staff         User             @relation("StaffSales", fields: [staffId], references: [id], onDelete: Restrict)
+  customerProfile CustomerProfile? @relation(fields: [customerProfileId], references: [id], onDelete: SetNull)
   items         PosSaleItem[]
+  membershipAccrual MembershipAccrual?
 
   @@unique([staffId, clientSaleId])
   @@index([staffId])
+  @@index([customerProfileId])
   @@index([needsReview])
   @@index([createdAt])
   @@map("pos_sales")
@@ -419,6 +549,7 @@ model PosSaleItem {
   saleId       String
   variantId    String
   productName  String
+  productImageUrl String?
   variantSku   String
   variantSize  String
   variantColor String
@@ -430,4 +561,164 @@ model PosSaleItem {
   @@unique([saleId, variantId])
   @@index([variantId])
   @@map("pos_sale_items")
+}
+
+model CustomerProfile {
+  id                  String               @id @default(cuid())
+  userId              String?              @unique
+  fullName            String
+  normalizedPhone     String?
+  normalizedEmail     String?
+  birthDate           DateTime?            @db.Date
+  preferredCalendar   PreferredCalendar?
+  bsBirthMonth        Int?
+  bsBirthDay          Int?
+  state               CustomerProfileState @default(active)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  user                User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orders              Order[]
+  posSales            PosSale[]
+  membershipYears     CustomerMembershipYear[]
+  membershipAccruals  MembershipAccrual[]
+
+  @@unique([normalizedPhone])
+  @@unique([normalizedEmail])
+  @@index([state])
+  @@index([preferredCalendar, bsBirthMonth, bsBirthDay])
+  @@index([birthDate])
+  @@map("customer_profiles")
+}
+
+model MembershipSignupClaim {
+  id                  String                 @id @default(cuid())
+  userId              String                 @unique
+  fullName            String
+  normalizedPhone     String
+  normalizedEmail     String
+  birthDate           DateTime               @db.Date
+  preferredCalendar   PreferredCalendar
+  bsBirthMonth        Int?
+  bsBirthDay          Int?
+  status              MembershipSignupStatus @default(pending_verification)
+  conflictReason      String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  user                User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("membership_signup_claims")
+}
+
+model MembershipTier {
+  id                    String   @id @default(cuid())
+  name                  String   @unique
+  threshold              Decimal  @db.Decimal(12, 2)
+  discountPercent        Decimal  @db.Decimal(5, 2)
+  benefits               String   @db.Text
+  birthdayGiftDescription String  @db.Text
+  rank                  Int      @unique
+  isActive              Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  versions              MembershipTierVersion[]
+  audits                MembershipTierAudit[]
+
+  @@index([isActive, threshold])
+  @@map("membership_tiers")
+}
+
+model MembershipTierVersion {
+  id                    String   @id @default(cuid())
+  tierId                String
+  version               Int
+  name                  String
+  threshold              Decimal  @db.Decimal(12, 2)
+  discountPercent        Decimal  @db.Decimal(5, 2)
+  benefits               String   @db.Text
+  birthdayGiftDescription String  @db.Text
+  rank                  Int
+  isActive              Boolean
+  createdAt             DateTime @default(now())
+  tier                  MembershipTier @relation(fields: [tierId], references: [id], onDelete: Restrict)
+  membershipYears       CustomerMembershipYear[]
+
+  @@unique([tierId, version])
+  @@index([tierId, createdAt])
+  @@map("membership_tier_versions")
+}
+
+model MembershipTierAudit {
+  id        String   @id @default(cuid())
+  tierId    String
+  actorId   String?
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+  tier      MembershipTier @relation(fields: [tierId], references: [id], onDelete: Restrict)
+  actor     User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([tierId, createdAt])
+  @@map("membership_tier_audits")
+}
+
+model CustomerMembershipYear {
+  id                    String   @id @default(cuid())
+  customerProfileId     String
+  year                  Int
+  eligibleNetSpend      Decimal  @default(0) @db.Decimal(12, 2)
+  activeTierId          String?
+  activeTierVersionId   String?
+  activatedAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  customerProfile       CustomerProfile @relation(fields: [customerProfileId], references: [id], onDelete: Restrict)
+  activeTierVersion     MembershipTierVersion? @relation(fields: [activeTierVersionId], references: [id], onDelete: SetNull)
+  accruals              MembershipAccrual[]
+
+  @@unique([customerProfileId, year])
+  @@index([year, activeTierId])
+  @@map("customer_membership_years")
+}
+
+model MembershipAccrual {
+  id                    String                  @id @default(cuid())
+  customerProfileId     String
+  membershipYearId      String
+  source                MembershipAccrualSource
+  posSaleId             String?                 @unique
+  orderId               String?                 @unique
+  netMerchandiseAmount  Decimal                 @db.Decimal(12, 2)
+  tierBeforeSnapshot    Json?
+  tierAfterSnapshot     Json?
+  createdAt             DateTime                @default(now())
+  customerProfile       CustomerProfile         @relation(fields: [customerProfileId], references: [id], onDelete: Restrict)
+  membershipYear        CustomerMembershipYear  @relation(fields: [membershipYearId], references: [id], onDelete: Restrict)
+  posSale               PosSale?                @relation(fields: [posSaleId], references: [id], onDelete: Restrict)
+  order                 Order?                  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([customerProfileId, createdAt])
+  @@map("membership_accruals")
+}
+
+model EmailOutbox {
+  id               String            @id @default(cuid())
+  kind             EmailKind
+  recipientEmail   String
+  deduplicationKey String            @unique
+  payload          Json?
+  encryptedPayload String?           @db.Text
+  status           EmailOutboxStatus @default(pending)
+  attempts         Int               @default(0)
+  providerMessageId String?
+  lastErrorCode    String?
+  availableAt      DateTime          @default(now())
+  sentAt           DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([status, availableAt])
+  @@map("email_outbox")
 }

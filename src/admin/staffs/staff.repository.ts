@@ -129,7 +129,10 @@ export async function finalizeNewStaffInTransaction(
 ) {
   const user = await transaction.user.update({
     where: { id },
-    data: { role },
+    // Staff accounts are provisioned by an authenticated administrator.
+    // Mark them verified so the customer-only verification gate never
+    // blocks Admin/POS access and no verification email is required.
+    data: { role, emailVerified: true },
     select: staffSelect,
   });
   await transaction.session.deleteMany({ where: { userId: id } });
