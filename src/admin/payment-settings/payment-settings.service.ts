@@ -21,6 +21,7 @@ export async function createConfiguration(adminId: string, input: PaymentQrConfi
         ...(input.accountName ? { accountName: input.accountName } : {}),
         ...(input.accountIdentifier ? { accountIdentifier: input.accountIdentifier } : {}),
         ...(input.instructions ? { instructions: input.instructions } : {}),
+        ...(input.codMerchandiseAdvancePercent !== undefined ? { codMerchandiseAdvancePercent: input.codMerchandiseAdvancePercent } : {}),
       });
     });
   } catch (error) {
@@ -35,5 +36,15 @@ export async function reactivateConfiguration(id: string, adminId: string) {
     if (!configuration) throw new AppError(404, 'PAYMENT_QR_CONFIGURATION_NOT_FOUND', 'Payment QR configuration was not found');
     await repository.deactivateActiveConfigurations(transaction, adminId, id);
     return repository.activateConfiguration(transaction, id, adminId);
+  });
+}
+
+export async function updateConfigurationMetadata(id: string, input: PaymentQrConfigurationBody) {
+  return repository.runPaymentQrTransaction(async (transaction) => {
+    const configuration = await repository.findConfiguration(transaction, id);
+    if (!configuration) throw new AppError(404, 'PAYMENT_QR_CONFIGURATION_NOT_FOUND', 'Payment QR configuration was not found');
+    const openPayments = await repository.countOpenPaymentsForConfiguration(transaction, id);
+    if (openPayments > 0) throw new AppError(409, 'PAYMENT_QR_CONFIGURATION_IN_USE', 'This QR has unpaid orders. Add and activate a replacement QR so their payment instructions remain unchanged.');
+    return repository.updateConfigurationMetadata(transaction, id, input);
   });
 }

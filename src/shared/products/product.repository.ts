@@ -37,13 +37,17 @@ function publicProductConditions(query: PublicProductListQuery) {
 }
 
 function publicProductOrder(query: PublicProductListQuery) {
+  // Keep products with at least one buyable variant ahead of sold-out products
+  // across every catalogue sort and page.  The secondary sort remains the
+  // customer-selected one, so this is stable and database-side.
+  const availability = Prisma.sql`MAX(CASE WHEN v."stockQty" > 0 THEN 1 ELSE 0 END) DESC`;
   if (query.sort === 'price_asc') {
-    return Prisma.sql`MIN(v."price") ASC, p."id" ASC`;
+    return Prisma.sql`${availability}, MIN(v."price") ASC, p."id" ASC`;
   }
   if (query.sort === 'price_desc') {
-    return Prisma.sql`MIN(v."price") DESC, p."id" ASC`;
+    return Prisma.sql`${availability}, MIN(v."price") DESC, p."id" ASC`;
   }
-  return Prisma.sql`p."createdAt" DESC, p."id" ASC`;
+  return Prisma.sql`${availability}, p."createdAt" DESC, p."id" ASC`;
 }
 
 export async function listPublicProducts(query: PublicProductListQuery) {

@@ -1,0 +1,11 @@
+import { Router } from 'express';
+import { envVariables } from '../../configs/env.config.js';
+import { requireAuth, requireRole } from '../auth/auth.middleware.js';
+import { AppError } from '../errors/app-error.js';
+import { validateRequest } from '../validation/validation.middleware.js';
+import * as controller from './shipping.controller.js';
+import { z } from 'zod';
+export const shippingRouter = Router();
+const booking = z.object({ pickupBranch: z.string().trim().min(1).max(120), destinationBranch: z.string().trim().min(1).max(120), deliveryType: z.enum(['Door2Door', 'Branch2Door', 'Branch2Branch', 'Door2Branch']).default('Door2Door'), packageDescription: z.string().trim().max(500).optional(), weightGrams: z.number().int().min(1).max(50_000).optional(), collectionAmount: z.string().regex(/^\d{1,10}(?:\.\d{1,2})?$/).optional() });
+shippingRouter.post('/admin/orders/:id/shipment/ncm', requireAuth, requireRole(['admin']), validateRequest({ params: z.object({ id: z.string().min(1).max(128) }), body: booking }), controller.book);
+shippingRouter.post('/integrations/ncm/webhook/:secret', (req, _res, next) => { if (!envVariables.NCM_WEBHOOK_SECRET || req.params.secret !== envVariables.NCM_WEBHOOK_SECRET) return next(new AppError(401, 'INVALID_NCM_WEBHOOK', 'Invalid webhook endpoint')); next(); }, controller.webhook);

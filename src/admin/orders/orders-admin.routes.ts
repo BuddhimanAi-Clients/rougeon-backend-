@@ -4,6 +4,7 @@ import * as orderController from './orders-admin.controller.js';
 import {
   listOrdersQuerySchema,
   orderIdParamsSchema,
+  refundOrderBodySchema,
   updateOrderStatusBodySchema,
   verifyPaymentBodySchema,
 } from './orders-admin.schemas.js';
@@ -16,3 +17,4 @@ ordersAdminRouter.get('/:id', validateRequest({ params: orderIdParamsSchema }), 
 ordersAdminRouter.get('/:id/payments/:paymentId/proof', orderController.getPaymentProof);
 ordersAdminRouter.patch('/:id/status', validateRequest({ params: orderIdParamsSchema, body: updateOrderStatusBodySchema }), orderController.updateOrderStatus);
 ordersAdminRouter.patch('/:id/verify-payment', validateRequest({ params: orderIdParamsSchema, body: verifyPaymentBodySchema }), orderController.verifyPayment);
+ordersAdminRouter.patch('/:id/refund', validateRequest({ params: orderIdParamsSchema, body: refundOrderBodySchema }), orderController.refundCodOrder);

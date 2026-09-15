@@ -9,6 +9,7 @@ export const paymentQrConfigurationBodySchema = z.object({
   accountName: z.string().trim().min(1).max(180).optional(),
   accountIdentifier: z.string().trim().min(1).max(180).optional(),
   instructions: z.string().trim().min(1).max(1_000).optional(),
+  codMerchandiseAdvancePercent: z.coerce.number().min(0).max(100).optional(),
 });
 
 export type PaymentQrConfigurationBody = z.infer<typeof paymentQrConfigurationBodySchema>;

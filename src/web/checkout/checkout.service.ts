@@ -12,6 +12,8 @@ import { envVariables } from '../../configs/env.config.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { CartOwner } from '../cart/cart.schemas.js';
 import { paymentInstructions } from '../payments/payment-instructions.service.js';
+import { requireCompleteUserProfile } from '../../shared/customers/customer.service.js';
+import { membershipSnapshot, quoteMembership } from '../../shared/membership/membership.service.js';
 import type { CheckoutBody } from './checkout.schemas.js';
 import * as checkoutRepository from './checkout.repository.js';
 
@@ -41,14 +43,18 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
 
     let delivery: {
       userId?: string;
+      customerProfileId?: string;
       guestSessionId?: string;
       shippingAddressId?: string;
       guestName: string;
+      guestEmail?: string;
       guestPhone: string;
       guestFullAddress: string;
       guestCity: string;
     };
 
+    let membershipDiscountPercent = new Prisma.Decimal(0);
+    let membershipTierSnapshot: Prisma.JsonObject | null = null;
     if ('userId' in owner) {
       if (!('shippingAddressId' in input)) {
         throw new AppError(
@@ -71,8 +77,13 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
       if (!address) {
         throw new AppError(404, 'ADDRESS_NOT_FOUND', 'Address was not found');
       }
+      const profile = await requireCompleteUserProfile(transaction, owner.userId);
+      const membership = await quoteMembership(transaction, profile.id);
+      membershipDiscountPercent = membership.discountPercent;
+      membershipTierSnapshot = membershipSnapshot(membership.tier);
       delivery = {
         userId: owner.userId,
+        customerProfileId: profile.id,
         shippingAddressId: address.id,
         guestName: user.name,
         guestPhone: address.phone,
@@ -90,6 +101,7 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
       delivery = {
         guestSessionId: owner.sessionId,
         guestName: input.guest.name,
+        ...(input.guest.email ? { guestEmail: input.guest.email.toLowerCase() } : {}),
         guestPhone: input.guest.phone,
         guestFullAddress: input.guest.fullAddress,
         guestCity: input.guest.city,
@@ -126,19 +138,35 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
       });
     }
 
+    const merchandiseDiscount = subtotal.mul(membershipDiscountPercent).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    const discountedMerchandise = subtotal.minus(merchandiseDiscount);
     const shippingFee = new Prisma.Decimal(envVariables.SHIPPING_FEE);
-    const total = subtotal.plus(shippingFee);
+    const total = discountedMerchandise.plus(shippingFee);
     const qrConfiguration = await checkoutRepository.findActivePaymentQrConfiguration(transaction);
     if (!qrConfiguration) {
       throw new AppError(503, 'PAYMENT_CONFIGURATION_UNAVAILABLE', 'Online payment instructions are not configured. Please try again later.');
     }
+    const paymentMethod = input.paymentMethod;
+    const codMerchandiseAdvancePercent = paymentMethod === 'cod'
+      ? qrConfiguration.codMerchandiseAdvancePercent
+      : new Prisma.Decimal(0);
+    const advancePaymentAmount = paymentMethod === 'cod'
+      ? shippingFee.plus(discountedMerchandise.mul(codMerchandiseAdvancePercent).div(100)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP)
+      : total;
+    const codCollectionAmount = total.minus(advancePaymentAmount);
     const order = await checkoutRepository.createOrder(transaction, {
       orderNumber: createOrderNumber(),
       status: OrderStatus.pending,
       subtotal,
+      merchandiseDiscount,
+      membershipDiscountPercent,
+      ...(membershipTierSnapshot ? { membershipTierSnapshot } : {}),
       shippingFee,
       total,
-      paymentMethod: WebPaymentMethod.qr,
+      advancePaymentAmount,
+      codCollectionAmount,
+      codMerchandiseAdvancePercent,
+      paymentMethod: paymentMethod === 'cod' ? WebPaymentMethod.cod : WebPaymentMethod.qr,
       paymentStatus: OrderPaymentStatus.unpaid,
       ...delivery,
       items: { create: orderItems },
@@ -146,7 +174,7 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
         create: {
           method: WebPaymentMethod.qr,
           status: PaymentStatus.awaiting_proof,
-          amount: total,
+          amount: advancePaymentAmount,
           qrConfigurationId: qrConfiguration.id,
         },
       },
@@ -160,9 +188,15 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
         orderNumber: order.orderNumber,
         status: order.status,
         paymentStatus: order.paymentStatus,
+        paymentMethod: order.paymentMethod,
         subtotal: order.subtotal.toFixed(2),
+        merchandiseDiscount: order.merchandiseDiscount.toFixed(2),
+        membershipDiscountPercent: order.membershipDiscountPercent.toFixed(2),
         shippingFee: order.shippingFee.toFixed(2),
         total: order.total.toFixed(2),
+        advancePaymentAmount: order.advancePaymentAmount.toFixed(2),
+        codCollectionAmount: order.codCollectionAmount.toFixed(2),
+        codMerchandiseAdvancePercent: order.codMerchandiseAdvancePercent.toFixed(2),
         createdAt: order.createdAt,
       },
       payment: {
@@ -171,7 +205,7 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
         amount: payment.amount.toFixed(2),
         createdAt: payment.createdAt,
       },
-      paymentInstructions: paymentInstructions(order, qrConfiguration),
+      paymentInstructions: paymentInstructions({ ...order, total: advancePaymentAmount }, qrConfiguration),
     };
   });
 }

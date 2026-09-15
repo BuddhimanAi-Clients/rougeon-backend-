@@ -20,11 +20,19 @@ function assertEligible(order: NonNullable<Awaited<ReturnType<typeof repository.
   return latest;
 }
 
+function assertLiveStock(order: NonNullable<Awaited<ReturnType<typeof repository.findOwnedOrder>>>) {
+  const unavailable = order.items.find((item) => item.variant.stockQty < item.qty);
+  if (unavailable) {
+    throw new AppError(409, 'ORDER_STOCK_UNAVAILABLE', unavailable.productName + ' no longer has enough stock for this unpaid order. Update your bag and place a new order before paying.');
+  }
+}
+
 export async function submitPaymentProof(orderId: string, owner: CartOwner, file: Express.Multer.File | undefined) {
   if (!file) throw new AppError(400, 'PAYMENT_PROOF_REQUIRED', 'A payment screenshot is required');
   const initialOrder = await repository.findOwnedOrder(orderId, owner);
   if (!initialOrder) throw new AppError(404, 'ORDER_NOT_FOUND', 'Order was not found');
   assertEligible(initialOrder);
+  assertLiveStock(initialOrder);
   const image = await inspectImage(file, MAX_PROOF_BYTES);
   const objectKey = createObjectKey(`payment-proofs/${orderId}`, image.extension);
   await uploadImage(objectKey, image);
@@ -34,11 +42,12 @@ export async function submitPaymentProof(orderId: string, owner: CartOwner, file
       const order = await repository.findOwnedOrderInTransaction(transaction, orderId, owner);
       if (!order) throw new AppError(404, 'ORDER_NOT_FOUND', 'Order was not found');
       const current = assertEligible(order);
+      assertLiveStock(order);
       const data = { screenshotUrl: null, screenshotObjectKey: objectKey, screenshotMimeType: image.mimeType, screenshotSize: image.byteSize };
       if (current.status === PaymentStatus.awaiting_proof) {
         await repository.updatePaymentProof(transaction, current.id, data);
       } else {
-        await repository.createPaymentProofAttempt(transaction, { orderId: order.id, amount: order.total, qrConfigurationId: current.qrConfigurationId, ...data });
+        await repository.createPaymentProofAttempt(transaction, { orderId: order.id, amount: order.advancePaymentAmount, qrConfigurationId: current.qrConfigurationId, ...data });
         await transaction.order.update({ where: { id: order.id }, data: { paymentStatus: OrderPaymentStatus.unpaid } });
       }
       return { status: PaymentStatus.pending_verification };

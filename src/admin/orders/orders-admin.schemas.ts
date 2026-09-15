@@ -24,8 +24,14 @@ export const updateOrderStatusBodySchema = z.object({
   trackingRef: z.string().trim().min(1).max(180).nullable().optional(),
 });
 export const verifyPaymentBodySchema = z.object({ action: z.enum(['confirm', 'reject']) });
+export const refundOrderBodySchema = z.object({
+  action: z.enum(['request', 'complete']),
+  reason: z.string().trim().min(3).max(1_000).optional(),
+  reference: z.string().trim().min(1).max(180).optional(),
+});
 
 export type OrderIdParams = z.infer<typeof orderIdParamsSchema>;
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;
 export type UpdateOrderStatusBody = z.infer<typeof updateOrderStatusBodySchema>;
 export type VerifyPaymentBody = z.infer<typeof verifyPaymentBodySchema>;
+export type RefundOrderBody = z.infer<typeof refundOrderBodySchema>;

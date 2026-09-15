@@ -5,7 +5,10 @@ import type { CartOwner } from '../cart/cart.schemas.js';
 import type { ListCustomerOrdersQuery } from './order.schemas.js';
 
 const orderInclude = Prisma.validator<Prisma.OrderInclude>()({
-  items: { orderBy: [{ id: 'asc' as const }] },
+  items: {
+    include: { variant: { select: { stockQty: true } } },
+    orderBy: [{ id: 'asc' as const }],
+  },
   payments: {
     select: {
       id: true,
@@ -21,6 +24,7 @@ const orderInclude = Prisma.validator<Prisma.OrderInclude>()({
     },
     orderBy: [{ createdAt: 'desc' as const }, { id: 'desc' as const }],
   },
+  shipment: { include: { events: { orderBy: [{ occurredAt: 'asc' as const }, { receivedAt: 'asc' as const }] } } },
 });
 
 export type WebsiteOrderRecord = Prisma.OrderGetPayload<{

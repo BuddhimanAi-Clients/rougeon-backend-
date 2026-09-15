@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express';
 import { validatedBody, validatedParams, validatedQuery } from '../../shared/validation/validation.middleware.js';
-import type { ListOrdersQuery, OrderIdParams, UpdateOrderStatusBody, VerifyPaymentBody } from './orders-admin.schemas.js';
+import type { ListOrdersQuery, OrderIdParams, RefundOrderBody, UpdateOrderStatusBody, VerifyPaymentBody } from './orders-admin.schemas.js';
 import * as orderService from './orders-admin.service.js';
 
 export const listOrders: RequestHandler = async (request, response) => {
@@ -34,4 +34,7 @@ export const verifyPayment: RequestHandler = async (request, response) => {
       validatedBody<VerifyPaymentBody>(request).action,
     ),
   });
+};
+export const refundCodOrder: RequestHandler = async (request, response) => {
+  response.status(200).json({ data: await orderService.refundCodOrder(validatedParams<OrderIdParams>(request).id, validatedBody<RefundOrderBody>(request)) });
 };

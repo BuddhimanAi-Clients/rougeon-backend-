@@ -25,7 +25,9 @@ export function toPublicProduct(
     color: variant.color,
     price: variant.price.toFixed(2),
     available: variant.stockQty > 0,
-    ...(includeExactStock ? { stockQty: variant.stockQty } : {}),
+    // The storefront uses this only to prevent selecting an impossible quantity.
+    // Checkout and inventory deductions still enforce the authoritative value.
+    stockQty: variant.stockQty,
   }));
   const prices = product.variants.map((variant) => variant.price);
   const firstPrice = prices[0];

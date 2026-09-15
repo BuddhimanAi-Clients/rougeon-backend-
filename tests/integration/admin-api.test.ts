@@ -47,9 +47,11 @@ async function createAuthenticatedUser(role: UserRole) {
     body: { name: `${role} Test`, email, password: 'StrongPassword123!' },
   });
   assert.equal(signup.status, 200);
-  assert.ok(signup.cookie);
-  await prisma.user.update({ where: { email }, data: { role } });
-  return { id: signup.body.user.id as string, email, cookie: signup.cookie };
+  await prisma.user.update({ where: { id: signup.body.user.id as string }, data: { role, emailVerified: true } });
+  const signIn = await api('/api/v1/auth/sign-in/email', { method: 'POST', body: { email, password: 'StrongPassword123!' } });
+  assert.equal(signIn.status, 200);
+  assert.ok(signIn.cookie);
+  return { id: signup.body.user.id as string, email, cookie: signIn.cookie };
 }
 
 async function truncateTestData() {

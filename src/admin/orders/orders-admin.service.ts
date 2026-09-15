@@ -4,13 +4,21 @@ import {
   OrderPaymentStatus,
   OrderStatus,
   PaymentStatus,
+  RefundStatus,
+  ShipmentBookingStatus,
+  WebPaymentMethod,
+  MembershipAccrualSource,
+  EmailKind,
+  Prisma,
 } from '@prisma/client';
 import { AppError } from '../../shared/errors/app-error.js';
 import { envVariables } from '../../configs/env.config.js';
 import { paginatedResult } from '../../shared/http/pagination.js';
 import { changeInventory } from '../../shared/inventory/inventory.service.js';
 import { getPrivateObject } from '../../shared/media/media.service.js';
-import type { ListOrdersQuery, UpdateOrderStatusBody } from './orders-admin.schemas.js';
+import { accrueMembership } from '../../shared/membership/membership.service.js';
+import { createEmailOutbox } from '../../shared/email/email.service.js';
+import type { ListOrdersQuery, RefundOrderBody, UpdateOrderStatusBody } from './orders-admin.schemas.js';
 import * as orderRepository from './orders-admin.repository.js';
 
 const transitions: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
@@ -21,6 +29,12 @@ const transitions: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
   delivered: [],
   cancelled: [],
 };
+
+function paymentReceiptHtml(order: { orderNumber: string; shippingFee: Prisma.Decimal; total: Prisma.Decimal; items: Array<{ productName: string; productImageUrl: string | null; variantSize: string; variantColor: string; qty: number; price: Prisma.Decimal }> }) {
+  const clean = (value: string) => value.replace(/[&<>"']/g, '');
+  const lines = order.items.map((item) => `<li>${item.productImageUrl?.startsWith('https://') ? `<img src="${clean(item.productImageUrl)}" alt="${clean(item.productName)}" width="64" height="64" /> ` : ''}${item.qty} × ${clean(item.productName)} (${clean(item.variantSize)}/${clean(item.variantColor)}) — NPR ${item.price.mul(item.qty).toFixed(2)}</li>`).join('');
+  return `<main><h1>ROGUEON</h1><p>Payment receipt for <strong>${clean(order.orderNumber)}</strong></p><ul>${lines}</ul><p>Shipping: NPR ${order.shippingFee.toFixed(2)}<br><strong>Amount paid: NPR ${order.total.toFixed(2)}</strong></p></main>`;
+}
 
 export async function getOrders(query: ListOrdersQuery) {
   const [orders, total] = await orderRepository.listOrders(query);
@@ -112,7 +126,13 @@ export function verifyPayment(id: string, adminId: string, action: 'confirm' | '
     if (order.status !== OrderStatus.pending || order.paymentStatus !== OrderPaymentStatus.unpaid) {
       throw new AppError(409, 'ORDER_STATE_CONFLICT', 'Order is not awaiting payment confirmation');
     }
-    if (!payment.amount.equals(order.total)) {
+    // Pre-COD QR orders were persisted before advancePaymentAmount existed and
+    // therefore carry the migration default of zero. They remain payable in
+    // full; COD orders always verify only their recorded advance.
+    const amountDue = order.paymentMethod === WebPaymentMethod.cod || order.advancePaymentAmount.gt(0)
+      ? order.advancePaymentAmount
+      : order.total;
+    if (!payment.amount.equals(amountDue)) {
       throw new AppError(409, 'PAYMENT_AMOUNT_MISMATCH', 'Payment amount does not match order total');
     }
     for (const item of order.items) {
@@ -134,6 +154,76 @@ export function verifyPayment(id: string, adminId: string, action: 'confirm' | '
     await orderRepository.updateOrderInTransaction(transaction, id, {
       paymentStatus: OrderPaymentStatus.paid,
       status: OrderStatus.confirmed,
+    });
+    let receiptEmail = order.guestEmail ?? undefined;
+    let customerName = order.guestName ?? 'Customer';
+    let eligibleSpend: string | undefined;
+    // Guests intentionally have no customerProfileId and never accrue membership.
+    if (order.customerProfileId) {
+      const accrual = await accrueMembership({
+        transaction,
+        customerProfileId: order.customerProfileId,
+        source: MembershipAccrualSource.web_order,
+        orderId: id,
+        netMerchandiseAmount: order.subtotal.minus(order.merchandiseDiscount),
+        now,
+      });
+      const customer = await transaction.customerProfile.findUnique({ where: { id: order.customerProfileId } });
+      receiptEmail = customer?.normalizedEmail ?? receiptEmail;
+      customerName = customer?.fullName ?? customerName;
+      eligibleSpend = accrual.membership.eligibleNetSpend.toFixed(2);
+    }
+    if (receiptEmail) {
+      const text = `Thank you, ${customerName}! Your ROGUEON order ${order.orderNumber} is confirmed. Amount paid: NPR ${order.total.toFixed(2)}.${eligibleSpend ? ` Current-year eligible spending: NPR ${eligibleSpend}.` : ''}`;
+      const confirmationHtml = `<main><h1>ROGUEON</h1><p>Thank you, ${customerName.replace(/[&<>"']/g, '')}.</p><p>Your order <strong>${order.orderNumber}</strong> is confirmed.</p><p>Amount paid: NPR ${order.total.toFixed(2)}</p></main>`;
+      await createEmailOutbox({ kind: EmailKind.web_order_confirmation, recipientEmail: receiptEmail, deduplicationKey: `web-order-confirmed:${order.id}`, payload: { subject: `ROGUEON order confirmed — ${order.orderNumber}`, text, html: confirmationHtml } }, transaction);
+      await createEmailOutbox({ kind: EmailKind.web_payment_receipt, recipientEmail: receiptEmail, deduplicationKey: `web-payment-receipt:${order.id}`, payload: { subject: `Your ROGUEON receipt — ${order.orderNumber}`, text: `Payment receipt for ${order.orderNumber}. Amount paid: NPR ${order.total.toFixed(2)}.`, html: paymentReceiptHtml(order) } }, transaction);
+    }
+    return orderRepository.findOrderDetailInTransaction(transaction, id);
+  });
+}
+
+function isConfirmedWarehouseReturn(shipment: { carrierStatus: string | null; events: Array<{ event: string; status: string }> }) {
+  const returned = /(?:returned[_ -]?to[_ -]?(?:warehouse|sender)|return[_ -]?(?:completed|delivered))/i;
+  return returned.test(shipment.carrierStatus ?? '') || shipment.events.some((event) => returned.test(event.event) || returned.test(event.status));
+}
+
+/**
+ * Cancelling a COD order creates a staff-visible refund task. Actual money is
+ * returned manually; completion is recorded only after the staff member does it.
+ */
+export function refundCodOrder(id: string, input: RefundOrderBody) {
+  return orderRepository.runOrderTransaction(async (transaction) => {
+    if ((await orderRepository.lockOrder(transaction, id)).length === 0) throw new AppError(404, 'ORDER_NOT_FOUND', 'Order was not found');
+    const order = await orderRepository.findOrderForRefund(transaction, id);
+    if (!order) throw new AppError(404, 'ORDER_NOT_FOUND', 'Order was not found');
+    if (order.paymentMethod !== WebPaymentMethod.cod) throw new AppError(409, 'REFUND_NOT_ELIGIBLE', 'Only prepaid COD advances can be refunded here. POS sales and full QR orders are not refundable.');
+
+    if (input.action === 'complete') {
+      if (order.refundStatus !== RefundStatus.pending) throw new AppError(409, 'REFUND_NOT_PENDING', 'There is no pending manual refund for this order.');
+      await orderRepository.updateOrderInTransaction(transaction, id, { refundStatus: RefundStatus.completed, refundCompletedAt: new Date(), ...(input.reference ? { refundReference: input.reference } : {}) });
+      return orderRepository.findOrderDetailInTransaction(transaction, id);
+    }
+
+    if (order.refundStatus) throw new AppError(409, 'REFUND_ALREADY_RECORDED', 'A refund has already been recorded for this order.');
+    if (order.paymentStatus !== OrderPaymentStatus.paid || order.advancePaymentAmount.lte(0)) throw new AppError(409, 'REFUND_NOT_ELIGIBLE', 'The COD advance must be verified before it can be refunded.');
+    const shipment = order.shipment;
+    const wasReturned = shipment?.bookingStatus === ShipmentBookingStatus.booked && isConfirmedWarehouseReturn(shipment);
+    if (shipment?.bookingStatus === ShipmentBookingStatus.booked && !wasReturned) throw new AppError(409, 'REFUND_NOT_ELIGIBLE', 'This order is with Nepal Can Move. A refund can be requested only after its confirmed return to the warehouse.');
+    if (!wasReturned && order.status !== OrderStatus.confirmed && order.status !== OrderStatus.packed) throw new AppError(409, 'REFUND_NOT_ELIGIBLE', 'Only confirmed or packed COD orders may be cancelled before courier handoff.');
+
+    // A confirmed NCM warehouse-return event has already restored stock.
+    if (!wasReturned) {
+      for (const item of order.items) {
+        await changeInventory({ transaction, variantId: item.variantId, changeQty: item.qty, reason: InventoryReason.restock, source: InventorySource.admin, referenceId: id });
+      }
+    }
+    await orderRepository.updateOrderInTransaction(transaction, id, {
+      status: OrderStatus.cancelled,
+      refundStatus: RefundStatus.pending,
+      refundAmount: order.advancePaymentAmount,
+      refundReason: input.reason ?? (wasReturned ? 'COD order returned to warehouse' : 'Cancelled before courier handoff'),
+      refundRequestedAt: new Date(),
     });
     return orderRepository.findOrderDetailInTransaction(transaction, id);
   });

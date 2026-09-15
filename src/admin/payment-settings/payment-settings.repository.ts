@@ -16,7 +16,7 @@ export function runPaymentQrTransaction<T>(operation: (transaction: Prisma.Trans
 }
 
 export function createAndActivateConfiguration(transaction: Prisma.TransactionClient, input: {
-  objectKey: string; publicUrl: string; detectedMimeType: string; byteSize: number; providerName?: string; accountName?: string; accountIdentifier?: string; instructions?: string; adminId: string;
+  objectKey: string; publicUrl: string; detectedMimeType: string; byteSize: number; providerName?: string; accountName?: string; accountIdentifier?: string; instructions?: string; codMerchandiseAdvancePercent?: number; adminId: string;
 }) {
   return transaction.paymentQrConfiguration.create({
     data: {
@@ -25,6 +25,7 @@ export function createAndActivateConfiguration(transaction: Prisma.TransactionCl
       ...(input.accountName ? { accountName: input.accountName } : {}),
       ...(input.accountIdentifier ? { accountIdentifier: input.accountIdentifier } : {}),
       ...(input.instructions ? { instructions: input.instructions } : {}),
+      ...(input.codMerchandiseAdvancePercent !== undefined ? { codMerchandiseAdvancePercent: input.codMerchandiseAdvancePercent } : {}),
       isActive: true, uploadedById: input.adminId, activatedById: input.adminId, activatedAt: new Date(),
       events: { create: { actorId: input.adminId, type: 'activated' } },
     },
@@ -47,6 +48,26 @@ export function activateConfiguration(transaction: Prisma.TransactionClient, id:
   return transaction.paymentQrConfiguration.update({
     where: { id },
     data: { isActive: true, activatedById: adminId, activatedAt: new Date(), events: { create: { actorId: adminId, type: 'activated' } } },
+    include: configurationInclude,
+  });
+}
+
+export function countOpenPaymentsForConfiguration(transaction: Prisma.TransactionClient, id: string) {
+  return transaction.payment.count({ where: { qrConfigurationId: id, status: { in: ['awaiting_proof', 'pending_verification'] } } });
+}
+
+export function updateConfigurationMetadata(transaction: Prisma.TransactionClient, id: string, input: {
+  providerName?: string | undefined; accountName?: string | undefined; accountIdentifier?: string | undefined; instructions?: string | undefined; codMerchandiseAdvancePercent?: number | undefined;
+}) {
+  return transaction.paymentQrConfiguration.update({
+    where: { id },
+    data: {
+      ...(input.providerName !== undefined ? { providerName: input.providerName } : {}),
+      ...(input.accountName !== undefined ? { accountName: input.accountName } : {}),
+      ...(input.accountIdentifier !== undefined ? { accountIdentifier: input.accountIdentifier } : {}),
+      ...(input.instructions !== undefined ? { instructions: input.instructions } : {}),
+      ...(input.codMerchandiseAdvancePercent !== undefined ? { codMerchandiseAdvancePercent: input.codMerchandiseAdvancePercent } : {}),
+    },
     include: configurationInclude,
   });
 }

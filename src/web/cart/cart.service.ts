@@ -31,6 +31,7 @@ function cartResponse(cart: CartRecord | null) {
           size: item.variant.size,
           color: item.variant.color,
           price: item.variant.price.toFixed(2),
+          stockQty: item.variant.stockQty,
           available:
             item.variant.product.status === ProductStatus.active &&
             item.variant.stockQty >= item.qty,

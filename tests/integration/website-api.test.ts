@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
 import { after, before, test } from 'node:test';
-import { Prisma, ProductStatus } from '@prisma/client';
+import { Prisma, ProductStatus, UserRole } from '@prisma/client';
 import { app } from '../../src/app.js';
 import { prisma } from '../../src/configs/database.config.js';
 
@@ -40,8 +40,11 @@ async function createCustomer(label: string) {
     body: { name: `${label} Customer`, email, password: 'StrongPassword123!' },
   });
   assert.equal(signup.status, 200);
-  assert.ok(signup.cookie);
-  return { id: signup.body.user.id as string, email, cookie: signup.cookie };
+  await prisma.user.update({ where: { id: signup.body.user.id as string }, data: { emailVerified: true } });
+  const signIn = await api('/api/v1/auth/sign-in/email', { method: 'POST', body: { email, password: 'StrongPassword123!' } });
+  assert.equal(signIn.status, 200);
+  assert.ok(signIn.cookie);
+  return { id: signup.body.user.id as string, email, cookie: signIn.cookie };
 }
 
 async function truncateTestData() {
@@ -220,6 +223,98 @@ test('complete implemented Website API contract', async (context) => {
 
   const customer = await createCustomer('Primary');
   const otherCustomer = await createCustomer('Other');
+  await prisma.customerProfile.create({
+    data: {
+      userId: customer.id, fullName: 'Primary Customer', normalizedPhone: '9800000000',
+      normalizedEmail: customer.email, birthDate: new Date('2000-01-01'), preferredCalendar: 'AD',
+    },
+  });
+
+  await context.test('customer sign-in requires verified email', async () => {
+    sequence += 1;
+    const email = 'unverified-customer-' + sequence + '@example.com';
+    const signup = await api('/api/v1/auth/sign-up/email', {
+      method: 'POST',
+      body: { name: 'Unverified Customer', email, password: 'StrongPassword123!' },
+    });
+    assert.equal(signup.status, 200);
+    assert.equal(signup.cookie, undefined);
+    const signIn = await api('/api/v1/auth/sign-in/email', {
+      method: 'POST',
+      body: { email, password: 'StrongPassword123!' },
+    });
+    assert.equal(signIn.status, 403);
+  });
+
+  await context.test('an exact POS identity links to the Website account and keeps one shared membership', async () => {
+    const cashier = await createCustomer('LinkCashier');
+    await prisma.user.update({ where: { id: cashier.id }, data: { role: UserRole.cashier } });
+
+    sequence += 1;
+    const email = `pos-web-link-${sequence}@example.com`;
+    const phone = `98123${String(sequence).padStart(5, '0')}`;
+    const profileInput = {
+      fullName: 'POS and Website Customer',
+      phone,
+      email,
+      dobCalendar: 'AD',
+      dob: { year: 2001, month: 5, day: 20 },
+    };
+
+    const posCreated = await api('/api/v1/pos/customers', {
+      method: 'POST',
+      cookie: cashier.cookie,
+      body: profileInput,
+    });
+    assert.equal(posCreated.status, 201);
+    assert.equal(posCreated.body.data.userId, null);
+
+    const signup = await api('/api/v1/auth/sign-up/email', {
+      method: 'POST',
+      body: { name: profileInput.fullName, email, password: 'StrongPassword123!' },
+    });
+    assert.equal(signup.status, 200);
+    const userId = signup.body.user.id as string;
+    await prisma.user.update({ where: { id: userId }, data: { emailVerified: true } });
+    const signIn = await api('/api/v1/auth/sign-in/email', {
+      method: 'POST',
+      body: { email, password: 'StrongPassword123!' },
+    });
+    assert.equal(signIn.status, 200);
+    assert.ok(signIn.cookie);
+
+    const linked = await api('/api/v1/customers/membership-signup', {
+      method: 'POST',
+      cookie: signIn.cookie,
+      body: profileInput,
+    });
+    assert.equal(linked.status, 201);
+    assert.equal(linked.body.data.id, posCreated.body.data.id);
+    assert.equal(linked.body.data.userId, userId);
+
+    const loaded = await api('/api/v1/customers/me', { cookie: signIn.cookie });
+    assert.equal(loaded.status, 200);
+    assert.equal(loaded.body.data.id, posCreated.body.data.id);
+    assert.equal(loaded.body.data.normalizedEmail, email);
+
+    const repeated = await api('/api/v1/customers/membership-signup', {
+      method: 'POST',
+      cookie: signIn.cookie,
+      body: profileInput,
+    });
+    assert.equal(repeated.status, 201);
+    assert.equal(repeated.body.data.id, posCreated.body.data.id);
+  });
+  await prisma.paymentQrConfiguration.create({
+    data: {
+      objectKey: 'test-active-qr', publicUrl: 'https://cdn.example.com/test-payment-qr.png',
+      detectedMimeType: 'image/png', byteSize: 100, providerName: 'Test Bank',
+      accountName: 'ROGUEON Test', accountIdentifier: 'TEST-ACCOUNT',
+      instructions: 'Pay the exact test amount.', isActive: true,
+      uploadedById: customer.id, activatedById: customer.id, activatedAt: new Date(),
+      events: { create: { actorId: customer.id, type: 'activated' } },
+    },
+  });
 
   await context.test('authenticated Cart isolation and idempotent guest merge', async () => {
     const customerCart = await api('/api/v1/cart/items', {
@@ -450,7 +545,9 @@ test('complete implemented Website API contract', async (context) => {
     assert.equal(stored.guestSessionId?.length, 64);
     assert.equal((await api(`/api/v1/orders/${guestOrderId}`, { cookie })).status, 200);
     assert.equal((await api(`/api/v1/orders/${guestOrderId}`)).status, 404);
-    assert.equal((await api('/api/v1/orders', { cookie })).status, 401);
+    const guestHistory = await api('/api/v1/orders', { cookie });
+    assert.equal(guestHistory.status, 200);
+    assert.equal(guestHistory.body.pagination.total, 1);
   });
 
   await context.test('checkout revalidates current stock and price', async () => {

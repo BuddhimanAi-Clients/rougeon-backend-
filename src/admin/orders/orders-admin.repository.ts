@@ -5,6 +5,7 @@ import {
 import { prisma } from '../../configs/database.config.js';
 import { paginationArgs } from '../../shared/http/pagination.js';
 import type { ListOrdersQuery } from './orders-admin.schemas.js';
+import { localDayBounds } from '../../shared/calendar/calendar.service.js';
 
 const orderDetailInclude = {
   user: { select: { id: true, name: true, email: true, phone: true } },
@@ -21,17 +22,15 @@ const orderDetailInclude = {
     include: { verifier: { select: { id: true, name: true, email: true } } },
     orderBy: { id: 'desc' as const },
   },
+  shipment: { include: { events: { orderBy: [{ occurredAt: 'asc' as const }, { receivedAt: 'asc' as const }] } } },
 } satisfies Prisma.OrderInclude;
 
 function dateFilter(from?: string, to?: string): Prisma.DateTimeFilter | undefined {
   if (!from && !to) return undefined;
   const filter: Prisma.DateTimeFilter = {};
-  if (from) filter.gte = new Date(`${from}T00:00:00.000Z`);
-  if (to) {
-    const end = new Date(`${to}T00:00:00.000Z`);
-    end.setUTCDate(end.getUTCDate() + 1);
-    filter.lt = end;
-  }
+  const parts = (value: string) => { const [year, month, day] = value.split('-').map(Number); return { year: year!, month: month!, day: day! }; };
+  if (from) filter.gte = localDayBounds(parts(from)).start;
+  if (to) filter.lt = localDayBounds(parts(to)).end;
   return filter;
 }
 
@@ -121,6 +120,16 @@ export function findOrderState(transaction: Prisma.TransactionClient, orderId: s
     include: {
       items: { orderBy: [{ variantId: 'asc' }, { id: 'asc' }] },
       payments: { where: { status: PaymentStatus.pending_verification } },
+    },
+  });
+}
+
+export function findOrderForRefund(transaction: Prisma.TransactionClient, orderId: string) {
+  return transaction.order.findUnique({
+    where: { id: orderId },
+    include: {
+      items: { orderBy: [{ variantId: 'asc' }, { id: 'asc' }] },
+      shipment: { include: { events: true } },
     },
   });
 }

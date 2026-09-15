@@ -8,3 +8,4 @@ export const paymentSettingsRouter = Router();
 paymentSettingsRouter.get('/qr-configurations', controller.listConfigurations);
 paymentSettingsRouter.post('/qr-configurations', imageUpload(4 * 1024 * 1024, 1).single('qr'), mediaUploadError, validateRequest({ body: paymentQrConfigurationBodySchema }), controller.createConfiguration);
 paymentSettingsRouter.post('/qr-configurations/:id/activate', validateRequest({ params: paymentQrConfigurationIdParamsSchema }), controller.reactivateConfiguration);
+paymentSettingsRouter.patch('/qr-configurations/:id', validateRequest({ params: paymentQrConfigurationIdParamsSchema, body: paymentQrConfigurationBodySchema }), controller.updateConfigurationMetadata);

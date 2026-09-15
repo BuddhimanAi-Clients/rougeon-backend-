@@ -6,8 +6,13 @@ function ownership(owner: CartOwner): Prisma.OrderWhereInput {
   return 'userId' in owner ? { userId: owner.userId } : { userId: null, guestSessionId: owner.sessionId };
 }
 
+const paymentOrderInclude = {
+  payments: { orderBy: [{ createdAt: 'desc' as const }, { id: 'desc' as const }] },
+  items: { include: { variant: { select: { stockQty: true } } } },
+} satisfies Prisma.OrderInclude;
+
 export function findOwnedOrder(id: string, owner: CartOwner) {
-  return prisma.order.findFirst({ where: { id, ...ownership(owner) }, include: { payments: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] } } });
+  return prisma.order.findFirst({ where: { id, ...ownership(owner) }, include: paymentOrderInclude });
 }
 
 export function runPaymentTransaction<T>(operation: (transaction: Prisma.TransactionClient) => Promise<T>) {
@@ -19,7 +24,7 @@ export function lockOrder(transaction: Prisma.TransactionClient, id: string) {
 }
 
 export function findOwnedOrderInTransaction(transaction: Prisma.TransactionClient, id: string, owner: CartOwner) {
-  return transaction.order.findFirst({ where: { id, ...ownership(owner) }, include: { payments: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }] } } });
+  return transaction.order.findFirst({ where: { id, ...ownership(owner) }, include: paymentOrderInclude });
 }
 
 export function updatePaymentProof(transaction: Prisma.TransactionClient, id: string, data: { screenshotUrl: string | null; screenshotObjectKey: string; screenshotMimeType: string; screenshotSize: number }) {
