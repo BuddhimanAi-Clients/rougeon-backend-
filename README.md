@@ -43,6 +43,18 @@ applications.
    npm run dev
    ```
 
+   On a brand-new database, create the first Admin account once from an
+   interactive terminal:
+
+   ```bash
+   npm run bootstrap:admin
+   ```
+
+   The command hides the password, creates a normal Better Auth credential,
+   marks the account verified, and promotes it to `admin`. It refuses while an
+   active Admin exists; after that, create cashiers and other Admins through
+   the Admin Staff page.
+
 6. In deployments that send transactional email, start the durable email worker separately:
 
    ```bash
