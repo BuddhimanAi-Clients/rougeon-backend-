@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Prisma, type PosPaymentMethod } from '@prisma/client';
+import { EmailKind, MembershipAccrualSource, Prisma, type PosPaymentMethod } from '@prisma/client';
 import { prisma } from '../../configs/database.config.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import { paginatedResult } from '../../shared/http/pagination.js';
@@ -21,6 +21,8 @@ import {
   markSaleNeedsReview,
 } from './sales.repository.js';
 import type { ListSalesQuery } from './sales.schemas.js';
+import { accrueMembership, membershipSnapshot, quoteMembership } from '../../shared/membership/membership.service.js';
+import { createEmailOutbox } from '../../shared/email/email.service.js';
 
 export type CreateSaleInput = {
   items: {
@@ -28,6 +30,7 @@ export type CreateSaleInput = {
     qty: number;
   }[];
   paymentMethod: PosPaymentMethod;
+  customerProfileId?: string;
 };
 
 export type CreateOfflineSaleInput = CreateSaleInput & {
@@ -81,6 +84,11 @@ function validateSaleItems(items: CreateSaleInput['items']): void {
 function generateSaleNumber(): string {
   return `SALE-${randomUUID().toUpperCase()}`;
 }
+
+function primaryProductImage(images: Prisma.JsonValue) {
+  return Array.isArray(images) ? images.find((image): image is string => typeof image === 'string') ?? null : null;
+}
+function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!); }
 
 function serializeSale(sale: StoredSale) {
   return {
@@ -220,6 +228,14 @@ async function createSaleWithInventoryPolicy(
         }
       }
 
+      const customer = input.customerProfileId
+        ? await transaction.customerProfile.findFirst({ where: { id: input.customerProfileId, state: 'active', normalizedPhone: { not: null }, normalizedEmail: { not: null }, birthDate: { not: null }, preferredCalendar: { not: null } } })
+        : null;
+      if (!offlineInput && !customer) {
+        throw new AppError(422, 'POS_CUSTOMER_REQUIRED', 'Select or create a customer before completing this sale');
+      }
+      const membership = customer ? await quoteMembership(transaction, customer.id, offlineInput?.occurredAt ?? new Date()) : null;
+
       const saleItems = input.items.map((item) => {
         const variant = variantById.get(item.variantId);
 
@@ -234,6 +250,7 @@ async function createSaleWithInventoryPolicy(
         return {
           variantId: item.variantId,
           productName: variant.product.name,
+          productImageUrl: variant.product.media[0]?.publicUrl ?? primaryProductImage(variant.product.images),
           variantSku: variant.sku,
           variantSize: variant.size,
           variantColor: variant.color,
@@ -246,16 +263,23 @@ async function createSaleWithInventoryPolicy(
         (sum, item) => sum.plus(item.price.mul(item.qty)),
         new Prisma.Decimal(0),
       );
+      const merchandiseDiscount = membership ? subtotal.mul(membership.discountPercent).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) : new Prisma.Decimal(0);
+      const total = subtotal.minus(merchandiseDiscount);
 
+      const tierSnapshot = membership?.tier ? membershipSnapshot(membership.tier) : null;
       const createdSale = await createSaleWithItems(transaction, {
         staffId,
+        ...(customer ? { customerProfileId: customer.id } : {}),
         ...(clientSaleId ? { clientSaleId } : {}),
         cashierName: staff.name,
         ...(offlineInput ? { occurredAt: offlineInput.occurredAt } : {}),
         saleNumber,
         paymentMethod: input.paymentMethod,
         subtotal,
-        total: subtotal,
+        merchandiseDiscount,
+        membershipDiscountPercent: membership?.discountPercent ?? new Prisma.Decimal(0),
+        ...(tierSnapshot ? { membershipTierSnapshot: tierSnapshot } : {}),
+        total,
         items: saleItems,
       });
 
@@ -281,6 +305,21 @@ async function createSaleWithInventoryPolicy(
 
       if (needsReview) {
         await markSaleNeedsReview(transaction, createdSale.id);
+      }
+
+      if (customer) {
+        const accrual = await accrueMembership({ transaction, customerProfileId: customer.id, source: MembershipAccrualSource.pos_sale, posSaleId: createdSale.id, netMerchandiseAmount: total, now: offlineInput?.occurredAt ?? new Date() });
+        const itemText = saleItems.map((item) => `${item.qty} × ${item.productName} (${item.variantSize}/${item.variantColor}) — NPR ${item.price.mul(item.qty).toFixed(2)}`).join('\n');
+        const safeItems = saleItems.map((item) => `<li>${item.productImageUrl?.startsWith('https://') ? `<img src="${escapeHtml(item.productImageUrl)}" alt="${escapeHtml(item.productName)}" width="64" /> ` : ''}${item.qty} × ${escapeHtml(item.productName)} (${escapeHtml(item.variantSize)}/${escapeHtml(item.variantColor)}) — NPR ${item.price.mul(item.qty).toFixed(2)}</li>`).join('');
+        const tierName = membership?.tier?.name ?? 'No membership';
+        const text = `Thank you, ${customer.fullName}!\nSale ${createdSale.saleNumber}\n${itemText}\nMerchandise subtotal: NPR ${subtotal.toFixed(2)}\nMembership discount (${membership?.discountPercent.toFixed(2) ?? '0.00'}%): NPR ${merchandiseDiscount.toFixed(2)}\nAmount paid: NPR ${total.toFixed(2)}\nCurrent-year eligible spending: NPR ${accrual.membership.eligibleNetSpend.toFixed(2)}${accrual.newlyUnlocked ? `\nNew membership unlocked: ${accrual.newlyUnlocked.name}` : ''}`;
+        const receiptHtml = `<main><h1>ROGUEON</h1><p>Thank you, ${escapeHtml(customer.fullName)}.</p><p>Sale <strong>${escapeHtml(createdSale.saleNumber)}</strong></p><ul>${safeItems}</ul><p>Merchandise subtotal: NPR ${subtotal.toFixed(2)}<br>Membership: ${escapeHtml(tierName)} (${membership?.discountPercent.toFixed(2) ?? '0.00'}%)<br>Discount: NPR ${merchandiseDiscount.toFixed(2)}<br><strong>Amount paid: NPR ${total.toFixed(2)}</strong></p><p>Current-year eligible spending: NPR ${accrual.membership.eligibleNetSpend.toFixed(2)}</p></main>`;
+        await createEmailOutbox({
+          kind: EmailKind.pos_receipt,
+          recipientEmail: customer.normalizedEmail!,
+          deduplicationKey: `pos-receipt:${createdSale.id}`,
+          payload: { subject: `Your ROGUEON receipt — ${createdSale.saleNumber}`, text, html: receiptHtml },
+        }, transaction);
       }
 
       return {

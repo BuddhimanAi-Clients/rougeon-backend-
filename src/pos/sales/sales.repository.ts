@@ -12,6 +12,7 @@ const saleItemSelect = {
   id: true,
   variantId: true,
   productName: true,
+  productImageUrl: true,
   variantSku: true,
   variantSize: true,
   variantColor: true,
@@ -23,9 +24,13 @@ const storedSaleSelect = {
   id: true,
   saleNumber: true,
   staffId: true,
+  customerProfileId: true,
   clientSaleId: true,
   cashierName: true,
   subtotal: true,
+  merchandiseDiscount: true,
+  membershipDiscountPercent: true,
+  membershipTierSnapshot: true,
   total: true,
   paymentMethod: true,
   needsReview: true,
@@ -39,6 +44,7 @@ const storedSaleSelect = {
 export type CreateSaleItemInput = {
   variantId: string;
   productName: string;
+  productImageUrl: string | null;
   variantSku: string;
   variantSize: string;
   variantColor: string;
@@ -48,12 +54,16 @@ export type CreateSaleItemInput = {
 
 export type CreateSaleWithItemsInput = {
   staffId: string;
+  customerProfileId?: string;
   clientSaleId?: string;
   cashierName: string;
   occurredAt?: Date;
   saleNumber: string;
   paymentMethod: PosPaymentMethod;
   subtotal: Prisma.Decimal;
+  merchandiseDiscount: Prisma.Decimal;
+  membershipDiscountPercent: Prisma.Decimal;
+  membershipTierSnapshot?: Prisma.InputJsonValue;
   total: Prisma.Decimal;
   items: CreateSaleItemInput[];
 };
@@ -87,7 +97,7 @@ export function getVariantsForSale(
       size: true,
       color: true,
       price: true,
-      product: { select: { name: true } },
+      product: { select: { name: true, images: true, media: { orderBy: { sortOrder: 'asc' }, take: 1, select: { publicUrl: true } } } },
     },
   });
 }
@@ -112,17 +122,22 @@ export function createSaleWithItems(
   return transaction.posSale.create({
     data: {
       staffId: input.staffId,
+      ...(input.customerProfileId ? { customerProfileId: input.customerProfileId } : {}),
       ...(input.clientSaleId ? { clientSaleId: input.clientSaleId } : {}),
       cashierName: input.cashierName,
       ...(input.occurredAt ? { createdAt: input.occurredAt } : {}),
       saleNumber: input.saleNumber,
       paymentMethod: input.paymentMethod,
       subtotal: input.subtotal,
+      merchandiseDiscount: input.merchandiseDiscount,
+      membershipDiscountPercent: input.membershipDiscountPercent,
+      ...(input.membershipTierSnapshot ? { membershipTierSnapshot: input.membershipTierSnapshot } : {}),
       total: input.total,
       items: {
         create: input.items.map((item) => ({
           variantId: item.variantId,
           productName: item.productName,
+          productImageUrl: item.productImageUrl,
           variantSku: item.variantSku,
           variantSize: item.variantSize,
           variantColor: item.variantColor,

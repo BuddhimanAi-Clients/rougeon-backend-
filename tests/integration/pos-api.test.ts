@@ -46,9 +46,11 @@ async function createAuthenticatedUser(role: UserRoleType, label: string) {
     body: { name, email, password: 'StrongPassword123!' },
   });
   assert.equal(signup.status, 200);
-  assert.ok(signup.cookie);
-  await prisma.user.update({ where: { email }, data: { role } });
-  return { id: signup.body.user.id as string, name, cookie: signup.cookie };
+  await prisma.user.update({ where: { id: signup.body.user.id as string }, data: { role, emailVerified: true } });
+  const signIn = await api('/api/v1/auth/sign-in/email', { method: 'POST', body: { email, password: 'StrongPassword123!' } });
+  assert.equal(signIn.status, 200);
+  assert.ok(signIn.cookie);
+  return { id: signup.body.user.id as string, name, cookie: signIn.cookie };
 }
 
 async function truncateTestData() {
@@ -93,6 +95,12 @@ test('complete POS API contract', async (context) => {
     'Other-Cashier',
   );
   const admin = await createAuthenticatedUser(UserRole.admin, 'Admin');
+  const customerProfile = await prisma.customerProfile.create({
+    data: {
+      userId: customer.id, fullName: customer.name, normalizedPhone: '9800000000',
+      normalizedEmail: 'pos-api-customer-1@example.com', birthDate: new Date('2000-01-01'), preferredCalendar: 'AD',
+    },
+  });
 
   const category = await prisma.category.create({
     data: { name: 'POS Clothing', slug: 'pos-clothing' },
@@ -158,7 +166,7 @@ test('complete POS API contract', async (context) => {
     assert.equal(publicProducts.status, 200);
     assert.equal(
       Object.hasOwn(publicProducts.body.data[0].variants[0], 'stockQty'),
-      false,
+      true,
     );
     const cashierProducts = await api(
       '/api/v1/products?search=POS-TEE-BLK-M',
@@ -171,7 +179,7 @@ test('complete POS API contract', async (context) => {
     );
     assert.equal(
       Object.hasOwn(customerProducts.body.data[0].variants[0], 'stockQty'),
-      false,
+      true,
     );
   });
 
@@ -183,6 +191,7 @@ test('complete POS API contract', async (context) => {
       body: {
         items: [{ variantId: activeVariant.id, qty: 2 }],
         paymentMethod: 'cash',
+        customerProfileId: customerProfile.id,
       },
     });
     assert.equal(sale.status, 201);
@@ -212,6 +221,7 @@ test('complete POS API contract', async (context) => {
       body: {
         items: [{ variantId: archivedProduct.variants[0]!.id, qty: 1 }],
         paymentMethod: 'cash',
+        customerProfileId: customerProfile.id,
       },
     });
     assert.equal(archivedSale.status, 404);
@@ -223,6 +233,7 @@ test('complete POS API contract', async (context) => {
       body: {
         items: [{ variantId: activeVariant.id, qty: 4 }],
         paymentMethod: 'cash',
+        customerProfileId: customerProfile.id,
       },
     });
     assert.equal(insufficient.status, 409);
@@ -288,8 +299,8 @@ test('complete POS API contract', async (context) => {
     assert.equal(receipt.body.data.items[0].price, '100.00');
     assert.equal(receipt.body.data.items[0].lineTotal, '200.00');
     assert.deepEqual(receipt.body.data.storeInfo, {
-      name: 'ROGUEON Test Store',
-      address: 'Test Store Address',
+      name: 'ROGUEON',
+      address: 'Kathmandu Maitedevi',
     });
     assert.equal(
       (

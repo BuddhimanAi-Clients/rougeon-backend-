@@ -20,6 +20,7 @@ export const createSaleBodySchema = z
   .object({
     items: z.array(saleItemSchema).min(1).max(MAX_POS_SALE_ITEMS),
     paymentMethod: posPaymentMethodSchema,
+    customerProfileId: z.string().trim().min(1).max(128),
   })
   .superRefine((value, context) => {
     const variantIds = new Set<string>();

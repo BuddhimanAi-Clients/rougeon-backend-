@@ -2,15 +2,13 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../configs/database.config.js';
 import { paginationArgs } from '../../shared/http/pagination.js';
 import type { ListPosSalesQuery } from './pos-sales-log.schemas.js';
+import { localDayBounds } from '../../shared/calendar/calendar.service.js';
 
 function saleWhere(query: ListPosSalesQuery): Prisma.PosSaleWhereInput {
   const createdAt: Prisma.DateTimeFilter = {};
-  if (query.from) createdAt.gte = new Date(`${query.from}T00:00:00.000Z`);
-  if (query.to) {
-    const end = new Date(`${query.to}T00:00:00.000Z`);
-    end.setUTCDate(end.getUTCDate() + 1);
-    createdAt.lt = end;
-  }
+  const parts = (value: string) => { const [year, month, day] = value.split('-').map(Number); return { year: year!, month: month!, day: day! }; };
+  if (query.from) createdAt.gte = localDayBounds(parts(query.from)).start;
+  if (query.to) createdAt.lt = localDayBounds(parts(query.to)).end;
   return {
     ...(query.staffId ? { staffId: query.staffId } : {}),
     ...(query.paymentMethod ? { paymentMethod: query.paymentMethod } : {}),
