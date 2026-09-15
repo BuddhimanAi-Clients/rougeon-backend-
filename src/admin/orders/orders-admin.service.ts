@@ -30,10 +30,14 @@ const transitions: Readonly<Record<OrderStatus, readonly OrderStatus[]>> = {
   cancelled: [],
 };
 
-function paymentReceiptHtml(order: { orderNumber: string; shippingFee: Prisma.Decimal; total: Prisma.Decimal; items: Array<{ productName: string; productImageUrl: string | null; variantSize: string; variantColor: string; qty: number; price: Prisma.Decimal }> }) {
+function paymentReceiptHtml(order: { orderNumber: string; subtotal: Prisma.Decimal; merchandiseDiscount: Prisma.Decimal; shippingFee: Prisma.Decimal; shippingDeliveryFee: Prisma.Decimal; shippingPickupFee: Prisma.Decimal; total: Prisma.Decimal; advancePaymentAmount: Prisma.Decimal; codCollectionAmount: Prisma.Decimal; codMerchandiseAdvancePercent: Prisma.Decimal; paymentMethod: WebPaymentMethod; items: Array<{ productName: string; productImageUrl: string | null; variantSize: string; variantColor: string; qty: number; price: Prisma.Decimal }> }) {
   const clean = (value: string) => value.replace(/[&<>"']/g, '');
   const lines = order.items.map((item) => `<li>${item.productImageUrl?.startsWith('https://') ? `<img src="${clean(item.productImageUrl)}" alt="${clean(item.productName)}" width="64" height="64" /> ` : ''}${item.qty} × ${clean(item.productName)} (${clean(item.variantSize)}/${clean(item.variantColor)}) — NPR ${item.price.mul(item.qty).toFixed(2)}</li>`).join('');
-  return `<main><h1>ROGUEON</h1><p>Payment receipt for <strong>${clean(order.orderNumber)}</strong></p><ul>${lines}</ul><p>Shipping: NPR ${order.shippingFee.toFixed(2)}<br><strong>Amount paid: NPR ${order.total.toFixed(2)}</strong></p></main>`;
+  const pricing = `<p>Merchandise subtotal: NPR ${order.subtotal.toFixed(2)}<br>Member discount: −NPR ${order.merchandiseDiscount.toFixed(2)}<br>NCM delivery fee: NPR ${order.shippingDeliveryFee.toFixed(2)}<br>NCM pickup charge: NPR ${order.shippingPickupFee.toFixed(2)}<br>Shipping total: NPR ${order.shippingFee.toFixed(2)}<br>Order total: NPR ${order.total.toFixed(2)}</p>`;
+  const payment = order.paymentMethod === WebPaymentMethod.cod
+    ? `<p>COD merchandise advance (${order.codMerchandiseAdvancePercent.toFixed(2)}%): NPR ${order.advancePaymentAmount.minus(order.shippingFee).toFixed(2)}<br><strong>Paid now by QR: NPR ${order.advancePaymentAmount.toFixed(2)}</strong><br>Pay Nepal Can Move on delivery: NPR ${order.codCollectionAmount.toFixed(2)}</p>`
+    : `<p><strong>Paid in full by QR: NPR ${order.advancePaymentAmount.toFixed(2)}</strong></p>`;
+  return `<main><h1>ROGUEON</h1><p>Payment receipt for <strong>${clean(order.orderNumber)}</strong></p><ul>${lines}</ul>${pricing}${payment}</main>`;
 }
 
 export async function getOrders(query: ListOrdersQuery) {
@@ -174,8 +178,9 @@ export function verifyPayment(id: string, adminId: string, action: 'confirm' | '
       eligibleSpend = accrual.membership.eligibleNetSpend.toFixed(2);
     }
     if (receiptEmail) {
-      const text = `Thank you, ${customerName}! Your ROGUEON order ${order.orderNumber} is confirmed. Amount paid: NPR ${order.total.toFixed(2)}.${eligibleSpend ? ` Current-year eligible spending: NPR ${eligibleSpend}.` : ''}`;
-      const confirmationHtml = `<main><h1>ROGUEON</h1><p>Thank you, ${customerName.replace(/[&<>"']/g, '')}.</p><p>Your order <strong>${order.orderNumber}</strong> is confirmed.</p><p>Amount paid: NPR ${order.total.toFixed(2)}</p></main>`;
+      const paidLabel = order.paymentMethod === WebPaymentMethod.cod ? `QR advance paid: NPR ${order.advancePaymentAmount.toFixed(2)}. Nepal Can Move will collect NPR ${order.codCollectionAmount.toFixed(2)} on delivery.` : `Amount paid in full: NPR ${order.total.toFixed(2)}.`;
+      const text = `Thank you, ${customerName}! Your ROGUEON order ${order.orderNumber} is confirmed. ${paidLabel}${eligibleSpend ? ` Current-year eligible spending: NPR ${eligibleSpend}.` : ''}`;
+      const confirmationHtml = `<main><h1>ROGUEON</h1><p>Thank you, ${customerName.replace(/[&<>"']/g, '')}.</p><p>Your order <strong>${order.orderNumber}</strong> is confirmed.</p><p>${paidLabel}</p></main>`;
       await createEmailOutbox({ kind: EmailKind.web_order_confirmation, recipientEmail: receiptEmail, deduplicationKey: `web-order-confirmed:${order.id}`, payload: { subject: `ROGUEON order confirmed — ${order.orderNumber}`, text, html: confirmationHtml } }, transaction);
       await createEmailOutbox({ kind: EmailKind.web_payment_receipt, recipientEmail: receiptEmail, deduplicationKey: `web-payment-receipt:${order.id}`, payload: { subject: `Your ROGUEON receipt — ${order.orderNumber}`, text: `Payment receipt for ${order.orderNumber}. Amount paid: NPR ${order.total.toFixed(2)}.`, html: paymentReceiptHtml(order) } }, transaction);
     }

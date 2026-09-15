@@ -26,6 +26,8 @@ function orderResponse(order: OrderRecord) {
     membershipDiscountPercent: order.membershipDiscountPercent.toFixed(2),
     membershipTierSnapshot: order.membershipTierSnapshot,
     shippingFee: order.shippingFee.toFixed(2),
+    shippingDeliveryFee: order.shippingDeliveryFee.toFixed(2),
+    shippingPickupFee: order.shippingPickupFee.toFixed(2),
     total: order.total.toFixed(2),
     advancePaymentAmount: order.advancePaymentAmount.toFixed(2),
     codCollectionAmount: order.codCollectionAmount.toFixed(2),

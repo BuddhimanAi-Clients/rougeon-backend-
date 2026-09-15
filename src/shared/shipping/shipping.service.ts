@@ -17,9 +17,10 @@ function carrierState(event: string, status: string) {
     returnedToWarehouse: /returned_to_(warehouse|sender)|return_(completed|delivered|received)/.test(value),
   };
 }
-function emailReceipt(order: { orderNumber: string; total: Prisma.Decimal; shippingFee: Prisma.Decimal; items: Array<{ productName: string; productImageUrl: string | null; variantSize: string; variantColor: string; qty: number; price: Prisma.Decimal }> }) {
+function emailReceipt(order: { orderNumber: string; total: Prisma.Decimal; shippingFee: Prisma.Decimal; shippingDeliveryFee: Prisma.Decimal; shippingPickupFee: Prisma.Decimal; merchandiseDiscount: Prisma.Decimal; subtotal: Prisma.Decimal; paymentMethod: 'qr' | 'cod'; advancePaymentAmount: Prisma.Decimal; codCollectionAmount: Prisma.Decimal; items: Array<{ productName: string; productImageUrl: string | null; variantSize: string; variantColor: string; qty: number; price: Prisma.Decimal }> }) {
   const items = order.items.map((item) => `<li>${item.productImageUrl?.startsWith('https://') ? `<img src="${item.productImageUrl.replace(/[&<>"']/g, '')}" alt="${item.productName.replace(/[&<>"']/g, '')}" width="64" height="64" /> ` : ''}${item.qty} × ${item.productName.replace(/[&<>"']/g, '')} (${item.variantSize}/${item.variantColor}) — NPR ${item.price.mul(item.qty).toFixed(2)}</li>`).join('');
-  return `<main><h1>ROGUEON</h1><p>Receipt for <strong>${order.orderNumber}</strong></p><ul>${items}</ul><p>Shipping: NPR ${order.shippingFee.toFixed(2)}<br><strong>Total: NPR ${order.total.toFixed(2)}</strong></p></main>`;
+  const payment = order.paymentMethod === 'cod' ? `<br>Paid by QR advance: NPR ${order.advancePaymentAmount.toFixed(2)}<br>Paid to Nepal Can Move: NPR ${order.codCollectionAmount.toFixed(2)}` : `<br>Paid in full by QR: NPR ${order.advancePaymentAmount.toFixed(2)}`;
+  return `<main><h1>ROGUEON</h1><p>Receipt for <strong>${order.orderNumber}</strong></p><ul>${items}</ul><p>Merchandise subtotal: NPR ${order.subtotal.toFixed(2)}<br>Member discount: −NPR ${order.merchandiseDiscount.toFixed(2)}<br>NCM delivery fee: NPR ${order.shippingDeliveryFee.toFixed(2)}<br>NCM pickup charge: NPR ${order.shippingPickupFee.toFixed(2)}<br>Shipping total: NPR ${order.shippingFee.toFixed(2)}<br><strong>Order total: NPR ${order.total.toFixed(2)}</strong>${payment}</p></main>`;
 }
 
 export async function bookNcmShipment(orderId: string, input: BookingInput) {

@@ -160,9 +160,14 @@ Customer-only routes:
 - `/api/v1/addresses/*`
 - `GET /api/v1/orders`
 
-Website checkout currently applies the backend-configured flat `SHIPPING_FEE`,
-which defaults to `150.00`. It requires an active payment QR configuration and
-snapshots it on the payment attempt. Checkout creates an `awaiting_proof`
+Website checkout currently applies the backend-configured base carrier delivery
+fee (`SHIPPING_FEE`, default `150.00`) plus the fixed NCM vendor pickup charge
+(`NCM_PICKUP_FEE`, default `15.00`). Both components and their total are
+snapshotted on every new order. COD orders additionally snapshot the configured
+merchandise-advance percentage; payment pages, order details, and receipts show
+the QR advance and the amount Nepal Can Move will collect on delivery. It
+requires an active payment QR configuration and snapshots it on the payment
+attempt. Checkout creates an `awaiting_proof`
 Payment but does not reserve or decrement stock; Admin confirmation remains the
 only Website stock decrement operation. Payment screenshots are stored privately
 and are available only through an authenticated Admin proof endpoint.

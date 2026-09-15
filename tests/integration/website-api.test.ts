@@ -311,6 +311,7 @@ test('complete implemented Website API contract', async (context) => {
       detectedMimeType: 'image/png', byteSize: 100, providerName: 'Test Bank',
       accountName: 'ROGUEON Test', accountIdentifier: 'TEST-ACCOUNT',
       instructions: 'Pay the exact test amount.', isActive: true,
+      codMerchandiseAdvancePercent: new Prisma.Decimal('10.00'),
       uploadedById: customer.id, activatedById: customer.id, activatedAt: new Date(),
       events: { create: { actorId: customer.id, type: 'activated' } },
     },
@@ -453,10 +454,12 @@ test('complete implemented Website API contract', async (context) => {
     });
     assert.equal(checkout.status, 201);
     assert.equal(checkout.body.data.order.subtotal, '400.00');
-    assert.equal(checkout.body.data.order.shippingFee, '150.00');
-    assert.equal(checkout.body.data.order.total, '550.00');
+    assert.equal(checkout.body.data.order.shippingDeliveryFee, '150.00');
+    assert.equal(checkout.body.data.order.shippingPickupFee, '15.00');
+    assert.equal(checkout.body.data.order.shippingFee, '165.00');
+    assert.equal(checkout.body.data.order.total, '565.00');
     assert.equal(checkout.body.data.payment.status, 'awaiting_proof');
-    assert.equal(checkout.body.data.paymentInstructions.amount, '550.00');
+    assert.equal(checkout.body.data.paymentInstructions.amount, '565.00');
     customerOrderId = checkout.body.data.order.id;
 
     const stored = await prisma.order.findUniqueOrThrow({
@@ -506,7 +509,7 @@ test('complete implemented Website API contract', async (context) => {
       cookie: customer.cookie,
     });
     assert.equal(instructions.status, 200);
-    assert.equal(instructions.body.data.amount, '550.00');
+    assert.equal(instructions.body.data.amount, '565.00');
     await prisma.product.update({
       where: { id: activeProduct.id },
       data: { name: 'Classic Tee' },
@@ -550,6 +553,40 @@ test('complete implemented Website API contract', async (context) => {
     assert.equal(guestHistory.body.pagination.total, 1);
   });
 
+  await context.test('COD checkout separates shipping, pickup, QR advance, and NCM collection', async () => {
+    const guest = await api('/api/v1/cart');
+    const cookie = guest.cookie!;
+    await api('/api/v1/cart/items', {
+      method: 'POST',
+      cookie,
+      body: { variantId: secondaryVariant.id, qty: 1 },
+    });
+    const checkout = await api('/api/v1/checkout', {
+      method: 'POST',
+      cookie,
+      body: {
+        paymentMethod: 'cod',
+        guest: {
+          name: 'COD Guest',
+          phone: '9855555555',
+          fullAddress: 'COD delivery road',
+          city: 'Biratnagar',
+        },
+      },
+    });
+    assert.equal(checkout.status, 201);
+    assert.equal(checkout.body.data.order.paymentMethod, 'cod');
+    assert.equal(checkout.body.data.order.subtotal, '200.00');
+    assert.equal(checkout.body.data.order.shippingDeliveryFee, '150.00');
+    assert.equal(checkout.body.data.order.shippingPickupFee, '15.00');
+    assert.equal(checkout.body.data.order.shippingFee, '165.00');
+    assert.equal(checkout.body.data.order.codMerchandiseAdvancePercent, '10.00');
+    assert.equal(checkout.body.data.order.advancePaymentAmount, '185.00');
+    assert.equal(checkout.body.data.order.codCollectionAmount, '180.00');
+    assert.equal(checkout.body.data.order.total, '365.00');
+    assert.equal(checkout.body.data.paymentInstructions.amount, '185.00');
+  });
+
   await context.test('checkout revalidates current stock and price', async () => {
     const guest = await api('/api/v1/cart');
     const cookie = guest.cookie!;
@@ -578,7 +615,7 @@ test('complete implemented Website API contract', async (context) => {
     const checkout = await api('/api/v1/checkout', { method: 'POST', cookie, body });
     assert.equal(checkout.status, 201);
     assert.equal(checkout.body.data.order.subtotal, '125.00');
-    assert.equal(checkout.body.data.order.total, '275.00');
+    assert.equal(checkout.body.data.order.total, '290.00');
   });
 
   await context.test('concurrent checkout consumes one Cart only once', async () => {

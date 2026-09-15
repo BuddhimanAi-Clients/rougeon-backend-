@@ -140,7 +140,9 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
 
     const merchandiseDiscount = subtotal.mul(membershipDiscountPercent).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
     const discountedMerchandise = subtotal.minus(merchandiseDiscount);
-    const shippingFee = new Prisma.Decimal(envVariables.SHIPPING_FEE);
+    const shippingDeliveryFee = new Prisma.Decimal(envVariables.SHIPPING_FEE);
+    const shippingPickupFee = new Prisma.Decimal(envVariables.NCM_PICKUP_FEE);
+    const shippingFee = shippingDeliveryFee.plus(shippingPickupFee);
     const total = discountedMerchandise.plus(shippingFee);
     const qrConfiguration = await checkoutRepository.findActivePaymentQrConfiguration(transaction);
     if (!qrConfiguration) {
@@ -162,6 +164,8 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
       membershipDiscountPercent,
       ...(membershipTierSnapshot ? { membershipTierSnapshot } : {}),
       shippingFee,
+      shippingDeliveryFee,
+      shippingPickupFee,
       total,
       advancePaymentAmount,
       codCollectionAmount,
@@ -193,6 +197,8 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
         merchandiseDiscount: order.merchandiseDiscount.toFixed(2),
         membershipDiscountPercent: order.membershipDiscountPercent.toFixed(2),
         shippingFee: order.shippingFee.toFixed(2),
+        shippingDeliveryFee: order.shippingDeliveryFee.toFixed(2),
+        shippingPickupFee: order.shippingPickupFee.toFixed(2),
         total: order.total.toFixed(2),
         advancePaymentAmount: order.advancePaymentAmount.toFixed(2),
         codCollectionAmount: order.codCollectionAmount.toFixed(2),
