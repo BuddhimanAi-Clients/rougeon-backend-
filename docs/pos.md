@@ -169,3 +169,37 @@ Same pattern as admin — `app.ts` mounts `/api/v1/pos` once, `pos.routes.ts` co
 | Staff login | `shared/auth/` — same Better Auth flow as customer/admin login, `role: cashier` |
 | Product/variant search by SKU or name | `shared/products/` — `GET /api/v1/products?search=...`; public/customer responses expose availability only, while authenticated cashier/admin responses also expose `stockQty` for offline POS state |
 | Stock increment/decrement | `shared/inventory/` — `sales.service.ts` and `sync-queue.service.ts` both import `decrementStock()`, never write to `stockQty` directly |
+
+---
+
+## Additions (October 2026)
+
+### Counter QR
+
+```
+GET /api/v1/pos/payment-qr      active administrator-managed payment QR
+```
+
+Returns `{ id, qrImageUrl, providerName, accountName, accountIdentifier, activatedAt }` for the QR
+currently active under Admin > Payment QR (the same one Website checkout uses). Responds
+`404 PAYMENT_QR_NOT_CONFIGURED` when none is active. The POS shows it when the cashier selects QR.
+
+### Membership discount controls
+
+- `POST /api/v1/pos/sales` accepts `applyMembershipDiscount` (boolean, default `true`) and
+  `discountWaiverReason` (3-300 characters, required when `applyMembershipDiscount` is `false`).
+- The discount is calculated by the server per line and only on products whose
+  `membershipDiscountEligible` is `true`. Each `pos_sale_items` row snapshots
+  `membershipDiscountEligible` and `discountAmount`.
+- A cashier can only withhold a discount the customer qualifies for, never grant one. When a real
+  discount is withheld the sale stores `membershipDiscountWaived`, `membershipDiscountWaivedPercent`,
+  `membershipDiscountWaivedAmount` and `membershipDiscountWaivedReason`; the acting staff member and
+  time are the sale's `staffId` and `createdAt`. The full amount paid still accrues membership spend.
+
+### Receipt shape
+
+`GET /api/v1/pos/receipts/:saleId` additionally returns `itemCount`, `discount { amount, percent,
+tierName, waived }`, `customer { name, phone } | null`, `footerNote`, and per item `productName`,
+`size`, `color`, `membershipDiscountEligible`, `discountAmount`. `storeInfo` gains `phone` and `pan`
+only when `STORE_PHONE` / `STORE_PAN` are configured. The POS renders it as an 80 mm (or 58 mm)
+thermal receipt.

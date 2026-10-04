@@ -14,6 +14,7 @@ import type { CartOwner } from '../cart/cart.schemas.js';
 import { paymentInstructions } from '../payments/payment-instructions.service.js';
 import { requireCompleteUserProfile } from '../../shared/customers/customer.service.js';
 import { membershipSnapshot, quoteMembership } from '../../shared/membership/membership.service.js';
+import { computeMembershipDiscount } from '../../shared/membership/discount.js';
 import type { CheckoutBody } from './checkout.schemas.js';
 import * as checkoutRepository from './checkout.repository.js';
 
@@ -108,8 +109,7 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
       };
     }
 
-    let subtotal = new Prisma.Decimal(0);
-    const orderItems: Prisma.OrderItemUncheckedCreateWithoutOrderInput[] = [];
+    const orderItems: Array<Prisma.OrderItemUncheckedCreateWithoutOrderInput & { price: Prisma.Decimal; membershipDiscountEligible: boolean }> = [];
     for (const item of cartState.items) {
       if (item.variant.product.status !== ProductStatus.active) {
         throw new AppError(
@@ -125,7 +125,6 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
           `Insufficient stock for ${item.variant.sku}`,
         );
       }
-      subtotal = subtotal.plus(item.variant.price.mul(item.qty));
       orderItems.push({
         variantId: item.variant.id,
         productName: item.variant.product.name,
@@ -135,10 +134,19 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
         variantColor: item.variant.color,
         qty: item.qty,
         price: item.variant.price,
+        membershipDiscountEligible: item.variant.product.membershipDiscountEligible,
       });
     }
 
-    const merchandiseDiscount = subtotal.mul(membershipDiscountPercent).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    // The tier percentage only reaches products an administrator left eligible.
+    const discount = computeMembershipDiscount(
+      orderItems.map((item) => ({ price: item.price, qty: item.qty, eligible: item.membershipDiscountEligible })),
+      membershipDiscountPercent,
+    );
+    orderItems.forEach((item, index) => { item.discountAmount = discount.lineDiscounts[index] ?? new Prisma.Decimal(0); });
+    const subtotal = discount.subtotal;
+    const merchandiseDiscount = discount.discount;
+    if (merchandiseDiscount.isZero()) membershipDiscountPercent = new Prisma.Decimal(0);
     const discountedMerchandise = subtotal.minus(merchandiseDiscount);
     const shippingDeliveryFee = new Prisma.Decimal(envVariables.SHIPPING_FEE);
     const shippingPickupFee = new Prisma.Decimal(envVariables.NCM_PICKUP_FEE);

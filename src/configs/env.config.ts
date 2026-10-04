@@ -57,6 +57,10 @@ const envSchema = z.object({
   EMAIL_OUTBOX_ENCRYPTION_KEY: z.string().trim().min(32).optional(),
   STORE_NAME: z.string().trim().min(1).max(180),
   STORE_ADDRESS: z.string().trim().min(1).max(300),
+  // Optional extras printed on receipts and emails when configured.
+  STORE_PHONE: z.string().trim().min(1).max(60).optional(),
+  STORE_PAN: z.string().trim().min(1).max(60).optional(),
+  RECEIPT_FOOTER_NOTE: z.string().trim().min(1).max(300).optional(),
   LOG_LEVEL: z
     .enum(['error', 'warn', 'info', 'http', 'verbose', 'debug', 'silly'])
     .default('debug'),

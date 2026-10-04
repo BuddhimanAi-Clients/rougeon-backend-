@@ -43,6 +43,7 @@ export function findPosSale(id: string) {
     where: { id },
     include: {
       staff: { select: { id: true, name: true, email: true, role: true } },
+      customerProfile: { select: { id: true, fullName: true, normalizedPhone: true } },
       items: {
         include: {
           variant: { include: { product: { select: { id: true, name: true, slug: true } } } },

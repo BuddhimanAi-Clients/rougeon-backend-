@@ -9,6 +9,8 @@ const productFields = {
   description: z.string().trim().min(1).max(20_000),
   images: z.array(z.url()).max(20).default([]),
   status: z.enum(ProductStatus),
+  // When false, membership tier discounts never apply to this product.
+  membershipDiscountEligible: z.boolean().default(true),
 };
 
 export const productIdParamsSchema = z.object({ id: z.string().trim().min(1).max(128) });
@@ -21,6 +23,7 @@ export const updateProductBodySchema = z
     description: productFields.description.optional(),
     images: productFields.images.optional(),
     status: productFields.status.optional(),
+    membershipDiscountEligible: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, { message: 'At least one field must be provided' });
 export const listProductsQuerySchema = z.object({

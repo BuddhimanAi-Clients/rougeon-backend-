@@ -5,6 +5,7 @@ import { prisma } from '../../configs/database.config.js';
 import { envVariables } from '../../configs/env.config.js';
 import { USER_ROLES } from './auth.types.js';
 import { enqueueAuthEmail } from '../email/email.service.js';
+import { resetPasswordEmail, verifyEmailEmail } from '../email/email-templates.js';
 import { EmailKind } from '@prisma/client';
 import { customerProfileInputSchema } from '../customers/customer.schemas.js';
 import { resolveVerifiedMembershipSignup, saveMembershipSignupClaim } from '../customers/customer.service.js';
@@ -76,7 +77,7 @@ export const auth = betterAuth({
     requireEmailVerification: true,
     autoSignIn: false,
     sendResetPassword: async ({ user, url }) => {
-      await enqueueAuthEmail({ kind: EmailKind.auth_password_reset, to: user.email, subject: 'Reset your ROGUEON password', text: `Reset your password: ${url}`, html: `<p>Use this link to reset your ROGUEON password:</p><p><a href="${url}">Reset password</a></p>` });
+      await enqueueAuthEmail({ kind: EmailKind.auth_password_reset, to: user.email, ...resetPasswordEmail({ name: user.name, url }) });
     },
   },
   emailVerification: {
@@ -86,7 +87,7 @@ export const auth = betterAuth({
     sendOnSignUp: false,
     sendOnSignIn: false,
     sendVerificationEmail: async ({ user, url }) => {
-      await enqueueAuthEmail({ kind: EmailKind.auth_verification, to: user.email, subject: 'Verify your ROGUEON email', text: `Verify your email: ${url}`, html: `<p>Verify your ROGUEON email address:</p><p><a href="${url}">Verify email</a></p>` });
+      await enqueueAuthEmail({ kind: EmailKind.auth_verification, to: user.email, ...verifyEmailEmail({ name: user.name, url }) });
     },
   },
   user: {

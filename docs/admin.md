@@ -200,3 +200,19 @@ app.use("/api/v1/admin", adminRouter);
 ```
 
 `app.ts` only ever mounts `/api/v1/admin` once. Everything else — `/staffs`, `/products`, `/variants/:id`, `/stock/:variantId/restock`, etc. — is composed by each module's own router knowing only its own slice of the path. Express concatenates the prefixes automatically as a request flows down through the nested `.use()` calls. One flat layer, no intermediate combining router needed beyond `admin.routes.ts` itself.
+
+---
+
+## Additions (October 2026)
+
+- **Product membership discount switch.** `POST /api/v1/admin/products` and
+  `PATCH /api/v1/admin/products/:id` accept `membershipDiscountEligible` (boolean, default `true`).
+  When `false`, membership tier discounts never apply to that product on the Website or at the POS.
+  Sales of the product still count toward membership spend.
+- **POS discount audit.** `GET /api/v1/admin/pos-sales` and `/:id` expose `membershipDiscountWaived`,
+  `membershipDiscountWaivedPercent`, `membershipDiscountWaivedAmount`,
+  `membershipDiscountWaivedReason` and, on the detail, `customerProfile`.
+- **Order emails.** Confirming a Website payment now sends one branded email containing both the
+  confirmation and the itemised receipt (`web_order_confirmation`). The separate
+  `web_payment_receipt` email is no longer sent. Templates live in
+  `src/shared/email/email-templates.ts`.
