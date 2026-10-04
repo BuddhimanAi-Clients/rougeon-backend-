@@ -41,6 +41,7 @@ function cartResponse(cart: CartRecord | null) {
           name: item.variant.product.name,
           slug: item.variant.product.slug,
           images: productImages(item.variant.product.images),
+          membershipDiscountEligible: item.variant.product.membershipDiscountEligible,
           category: item.variant.product.category,
         },
       };

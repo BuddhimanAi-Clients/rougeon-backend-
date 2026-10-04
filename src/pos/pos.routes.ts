@@ -6,6 +6,7 @@ import { salesRouter } from './sales/sales.routes.js';
 import { posCustomerRouter } from './customers/customer.routes.js';
 import { posDashboardRouter } from './dashboards/dashboard.routes.js';
 import { posMembershipTierRouter } from './membership-tiers/membership-tier.routes.js';
+import { posPaymentQrRouter } from './payment-qr/payment-qr.routes.js';
 
 export const posRouter = Router();
 
@@ -24,3 +25,4 @@ posRouter.use('/sync', syncRouter);
 posRouter.use('/customers', posCustomerRouter);
 posRouter.use('/dashboard', posDashboardRouter);
 posRouter.use('/membership-tiers', posMembershipTierRouter);
+posRouter.use('/payment-qr', posPaymentQrRouter);

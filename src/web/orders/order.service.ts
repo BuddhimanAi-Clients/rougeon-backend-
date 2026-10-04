@@ -59,6 +59,8 @@ function orderResponse(order: OrderRecord) {
       qty: item.qty,
       price: item.price.toFixed(2),
       lineTotal: item.price.mul(item.qty).toFixed(2),
+      membershipDiscountEligible: item.membershipDiscountEligible,
+      discountAmount: item.discountAmount.toFixed(2),
       currentStockQty: item.variant.stockQty,
       stockAvailable: item.variant.stockQty >= item.qty,
     })),

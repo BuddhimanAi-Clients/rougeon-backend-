@@ -22,7 +22,10 @@ import {
 } from './sales.repository.js';
 import type { ListSalesQuery } from './sales.schemas.js';
 import { accrueMembership, membershipSnapshot, quoteMembership } from '../../shared/membership/membership.service.js';
+import { computeMembershipDiscount } from '../../shared/membership/discount.js';
 import { createEmailOutbox } from '../../shared/email/email.service.js';
+import { posReceiptEmail } from '../../shared/email/email-templates.js';
+import { logger } from '../../configs/logger.config.js';
 
 export type CreateSaleInput = {
   items: {
@@ -31,6 +34,8 @@ export type CreateSaleInput = {
   }[];
   paymentMethod: PosPaymentMethod;
   customerProfileId?: string;
+  applyMembershipDiscount?: boolean;
+  discountWaiverReason?: string | undefined;
 };
 
 export type CreateOfflineSaleInput = CreateSaleInput & {
@@ -88,16 +93,20 @@ function generateSaleNumber(): string {
 function primaryProductImage(images: Prisma.JsonValue) {
   return Array.isArray(images) ? images.find((image): image is string => typeof image === 'string') ?? null : null;
 }
-function escapeHtml(value: string) { return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!); }
 
 function serializeSale(sale: StoredSale) {
   return {
     ...sale,
     subtotal: sale.subtotal.toFixed(2),
+    merchandiseDiscount: sale.merchandiseDiscount.toFixed(2),
+    membershipDiscountPercent: sale.membershipDiscountPercent.toFixed(2),
+    membershipDiscountWaivedPercent: sale.membershipDiscountWaivedPercent.toFixed(2),
+    membershipDiscountWaivedAmount: sale.membershipDiscountWaivedAmount.toFixed(2),
     total: sale.total.toFixed(2),
     items: sale.items.map((item) => ({
       ...item,
       price: item.price.toFixed(2),
+      discountAmount: item.discountAmount.toFixed(2),
     })),
   };
 }
@@ -236,7 +245,7 @@ async function createSaleWithInventoryPolicy(
       }
       const membership = customer ? await quoteMembership(transaction, customer.id, offlineInput?.occurredAt ?? new Date()) : null;
 
-      const saleItems = input.items.map((item) => {
+      const saleLines = input.items.map((item) => {
         const variant = variantById.get(item.variantId);
 
         if (!variant) {
@@ -256,14 +265,24 @@ async function createSaleWithInventoryPolicy(
           variantColor: variant.color,
           qty: item.qty,
           price: variant.price,
+          membershipDiscountEligible: variant.product.membershipDiscountEligible,
         };
       });
 
-      const subtotal = saleItems.reduce(
-        (sum, item) => sum.plus(item.price.mul(item.qty)),
-        new Prisma.Decimal(0),
-      );
-      const merchandiseDiscount = membership ? subtotal.mul(membership.discountPercent).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP) : new Prisma.Decimal(0);
+      // The discount the customer is entitled to on this ticket: the tier
+      // percentage applied only to products an administrator left eligible.
+      const zero = new Prisma.Decimal(0);
+      const discountLines = saleLines.map((line) => ({ price: line.price, qty: line.qty, eligible: line.membershipDiscountEligible }));
+      const entitledPercent = membership?.discountPercent ?? zero;
+      const entitled = computeMembershipDiscount(discountLines, entitledPercent);
+      // A cashier can withhold that discount, never add one. It only counts as
+      // a waiver when there was a real discount to withhold.
+      const discountWaived = input.applyMembershipDiscount === false && entitled.discount.gt(0);
+      const applied = discountWaived ? computeMembershipDiscount(discountLines, zero) : entitled;
+      const appliedPercent = discountWaived || applied.discount.isZero() ? zero : entitledPercent;
+      const saleItems = saleLines.map((line, index) => ({ ...line, discountAmount: applied.lineDiscounts[index] ?? zero }));
+      const subtotal = applied.subtotal;
+      const merchandiseDiscount = applied.discount;
       const total = subtotal.minus(merchandiseDiscount);
 
       const tierSnapshot = membership?.tier ? membershipSnapshot(membership.tier) : null;
@@ -277,8 +296,12 @@ async function createSaleWithInventoryPolicy(
         paymentMethod: input.paymentMethod,
         subtotal,
         merchandiseDiscount,
-        membershipDiscountPercent: membership?.discountPercent ?? new Prisma.Decimal(0),
+        membershipDiscountPercent: appliedPercent,
         ...(tierSnapshot ? { membershipTierSnapshot: tierSnapshot } : {}),
+        membershipDiscountWaived: discountWaived,
+        membershipDiscountWaivedPercent: discountWaived ? entitledPercent : zero,
+        membershipDiscountWaivedAmount: discountWaived ? entitled.discount : zero,
+        ...(discountWaived && input.discountWaiverReason ? { membershipDiscountWaivedReason: input.discountWaiverReason } : {}),
         total,
         items: saleItems,
       });
@@ -307,18 +330,43 @@ async function createSaleWithInventoryPolicy(
         await markSaleNeedsReview(transaction, createdSale.id);
       }
 
+      if (discountWaived) {
+        // Durable record lives on the sale row; this line makes it searchable
+        // in the application log as well.
+        logger.info('POS membership discount withheld by staff', {
+          saleId: createdSale.id,
+          saleNumber: createdSale.saleNumber,
+          staffId,
+          customerProfileId: customer?.id,
+          withheldPercent: entitledPercent.toFixed(2),
+          withheldAmount: entitled.discount.toFixed(2),
+          reason: input.discountWaiverReason,
+        });
+      }
+
       if (customer) {
         const accrual = await accrueMembership({ transaction, customerProfileId: customer.id, source: MembershipAccrualSource.pos_sale, posSaleId: createdSale.id, netMerchandiseAmount: total, now: offlineInput?.occurredAt ?? new Date() });
-        const itemText = saleItems.map((item) => `${item.qty} × ${item.productName} (${item.variantSize}/${item.variantColor}) — NPR ${item.price.mul(item.qty).toFixed(2)}`).join('\n');
-        const safeItems = saleItems.map((item) => `<li>${item.productImageUrl?.startsWith('https://') ? `<img src="${escapeHtml(item.productImageUrl)}" alt="${escapeHtml(item.productName)}" width="64" /> ` : ''}${item.qty} × ${escapeHtml(item.productName)} (${escapeHtml(item.variantSize)}/${escapeHtml(item.variantColor)}) — NPR ${item.price.mul(item.qty).toFixed(2)}</li>`).join('');
-        const tierName = membership?.tier?.name ?? 'No membership';
-        const text = `Thank you, ${customer.fullName}!\nSale ${createdSale.saleNumber}\n${itemText}\nMerchandise subtotal: NPR ${subtotal.toFixed(2)}\nMembership discount (${membership?.discountPercent.toFixed(2) ?? '0.00'}%): NPR ${merchandiseDiscount.toFixed(2)}\nAmount paid: NPR ${total.toFixed(2)}\nCurrent-year eligible spending: NPR ${accrual.membership.eligibleNetSpend.toFixed(2)}${accrual.newlyUnlocked ? `\nNew membership unlocked: ${accrual.newlyUnlocked.name}` : ''}`;
-        const receiptHtml = `<main><h1>ROGUEON</h1><p>Thank you, ${escapeHtml(customer.fullName)}.</p><p>Sale <strong>${escapeHtml(createdSale.saleNumber)}</strong></p><ul>${safeItems}</ul><p>Merchandise subtotal: NPR ${subtotal.toFixed(2)}<br>Membership: ${escapeHtml(tierName)} (${membership?.discountPercent.toFixed(2) ?? '0.00'}%)<br>Discount: NPR ${merchandiseDiscount.toFixed(2)}<br><strong>Amount paid: NPR ${total.toFixed(2)}</strong></p><p>Current-year eligible spending: NPR ${accrual.membership.eligibleNetSpend.toFixed(2)}</p></main>`;
+        const email = posReceiptEmail({
+          customerName: customer.fullName,
+          saleNumber: createdSale.saleNumber,
+          createdAt: createdSale.createdAt,
+          cashierName: staff.name,
+          paymentMethod: input.paymentMethod,
+          items: saleItems.map((item) => ({ ...item, lineTotal: item.price.mul(item.qty) })),
+          subtotal,
+          merchandiseDiscount,
+          membershipDiscountPercent: appliedPercent,
+          tierName: membership?.tier?.name ?? null,
+          discountWaived,
+          total,
+          eligibleNetSpend: accrual.membership.eligibleNetSpend,
+          newlyUnlockedTier: accrual.newlyUnlocked?.name ?? null,
+        });
         await createEmailOutbox({
           kind: EmailKind.pos_receipt,
           recipientEmail: customer.normalizedEmail!,
           deduplicationKey: `pos-receipt:${createdSale.id}`,
-          payload: { subject: `Your ROGUEON receipt — ${createdSale.saleNumber}`, text, html: receiptHtml },
+          payload: email,
         }, transaction);
       }
 

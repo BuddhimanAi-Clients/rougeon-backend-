@@ -44,6 +44,7 @@ export function toPublicProduct(
     slug: product.slug,
     description: product.description,
     images: imageUrls(product.images),
+    membershipDiscountEligible: product.membershipDiscountEligible,
     createdAt: product.createdAt,
     category: product.category,
     variants,

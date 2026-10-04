@@ -15,7 +15,12 @@ export function getReceiptBySaleIdAndStaffId(
       createdAt: true,
       paymentMethod: true,
       subtotal: true,
+      merchandiseDiscount: true,
+      membershipDiscountPercent: true,
+      membershipTierSnapshot: true,
+      membershipDiscountWaived: true,
       total: true,
+      customerProfile: { select: { fullName: true, normalizedPhone: true } },
       items: {
         orderBy: { id: 'asc' },
         select: {
@@ -25,6 +30,8 @@ export function getReceiptBySaleIdAndStaffId(
           variantColor: true,
           qty: true,
           price: true,
+          membershipDiscountEligible: true,
+          discountAmount: true,
         },
       },
     },

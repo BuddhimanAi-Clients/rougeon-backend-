@@ -21,8 +21,20 @@ export const createSaleBodySchema = z
     items: z.array(saleItemSchema).min(1).max(MAX_POS_SALE_ITEMS),
     paymentMethod: posPaymentMethodSchema,
     customerProfileId: z.string().trim().min(1).max(128),
+    // A cashier may withhold a membership discount the customer qualifies for.
+    // The server decides whether there was a discount to withhold and records
+    // who did it and why; it can never be used to grant a discount.
+    applyMembershipDiscount: z.boolean().default(true),
+    discountWaiverReason: z.string().trim().min(3).max(300).optional(),
   })
   .superRefine((value, context) => {
+    if (!value.applyMembershipDiscount && !value.discountWaiverReason) {
+      context.addIssue({
+        code: 'custom',
+        path: ['discountWaiverReason'],
+        message: 'A reason is required when the membership discount is not applied',
+      });
+    }
     const variantIds = new Set<string>();
     for (const [index, item] of value.items.entries()) {
       if (variantIds.has(item.variantId)) {

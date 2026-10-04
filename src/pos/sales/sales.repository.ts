@@ -18,6 +18,8 @@ const saleItemSelect = {
   variantColor: true,
   qty: true,
   price: true,
+  membershipDiscountEligible: true,
+  discountAmount: true,
 } satisfies Prisma.PosSaleItemSelect;
 
 const storedSaleSelect = {
@@ -31,6 +33,10 @@ const storedSaleSelect = {
   merchandiseDiscount: true,
   membershipDiscountPercent: true,
   membershipTierSnapshot: true,
+  membershipDiscountWaived: true,
+  membershipDiscountWaivedPercent: true,
+  membershipDiscountWaivedAmount: true,
+  membershipDiscountWaivedReason: true,
   total: true,
   paymentMethod: true,
   needsReview: true,
@@ -50,6 +56,8 @@ export type CreateSaleItemInput = {
   variantColor: string;
   qty: number;
   price: Prisma.Decimal;
+  membershipDiscountEligible: boolean;
+  discountAmount: Prisma.Decimal;
 };
 
 export type CreateSaleWithItemsInput = {
@@ -64,6 +72,10 @@ export type CreateSaleWithItemsInput = {
   merchandiseDiscount: Prisma.Decimal;
   membershipDiscountPercent: Prisma.Decimal;
   membershipTierSnapshot?: Prisma.InputJsonValue;
+  membershipDiscountWaived: boolean;
+  membershipDiscountWaivedPercent: Prisma.Decimal;
+  membershipDiscountWaivedAmount: Prisma.Decimal;
+  membershipDiscountWaivedReason?: string;
   total: Prisma.Decimal;
   items: CreateSaleItemInput[];
 };
@@ -97,7 +109,7 @@ export function getVariantsForSale(
       size: true,
       color: true,
       price: true,
-      product: { select: { name: true, images: true, media: { orderBy: { sortOrder: 'asc' }, take: 1, select: { publicUrl: true } } } },
+      product: { select: { name: true, images: true, membershipDiscountEligible: true, media: { orderBy: { sortOrder: 'asc' }, take: 1, select: { publicUrl: true } } } },
     },
   });
 }
@@ -132,6 +144,10 @@ export function createSaleWithItems(
       merchandiseDiscount: input.merchandiseDiscount,
       membershipDiscountPercent: input.membershipDiscountPercent,
       ...(input.membershipTierSnapshot ? { membershipTierSnapshot: input.membershipTierSnapshot } : {}),
+      membershipDiscountWaived: input.membershipDiscountWaived,
+      membershipDiscountWaivedPercent: input.membershipDiscountWaivedPercent,
+      membershipDiscountWaivedAmount: input.membershipDiscountWaivedAmount,
+      ...(input.membershipDiscountWaivedReason ? { membershipDiscountWaivedReason: input.membershipDiscountWaivedReason } : {}),
       total: input.total,
       items: {
         create: input.items.map((item) => ({
@@ -143,6 +159,8 @@ export function createSaleWithItems(
           variantColor: item.variantColor,
           qty: item.qty,
           price: item.price,
+          membershipDiscountEligible: item.membershipDiscountEligible,
+          discountAmount: item.discountAmount,
         })),
       },
     },

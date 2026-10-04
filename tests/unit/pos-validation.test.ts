@@ -71,4 +71,13 @@ describe('POS request schemas', () => {
       false,
     );
   });
+  test('withholding a membership discount requires a reason', () => {
+    const base = { items: [validItem], paymentMethod: 'cash', customerProfileId: 'customer-1' };
+    const defaulted = createSaleBodySchema.safeParse(base);
+    assert.equal(defaulted.success, true);
+    assert.equal(defaulted.success && defaulted.data.applyMembershipDiscount, true);
+    assert.equal(createSaleBodySchema.safeParse({ ...base, applyMembershipDiscount: false }).success, false);
+    assert.equal(createSaleBodySchema.safeParse({ ...base, applyMembershipDiscount: false, discountWaiverReason: 'x' }).success, false);
+    assert.equal(createSaleBodySchema.safeParse({ ...base, applyMembershipDiscount: false, discountWaiverReason: 'Abusive towards staff' }).success, true);
+  });
 });

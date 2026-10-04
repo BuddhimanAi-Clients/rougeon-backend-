@@ -54,6 +54,7 @@ export function updateProduct(id: string, input: UpdateProductBody) {
   if (input.description !== undefined) data.description = input.description;
   if (input.images !== undefined) data.images = input.images;
   if (input.status !== undefined) data.status = input.status;
+  if (input.membershipDiscountEligible !== undefined) data.membershipDiscountEligible = input.membershipDiscountEligible;
   return prisma.product.update({
     where: { id },
     data,
