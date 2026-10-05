@@ -27,6 +27,13 @@ export function updateCategory(id: string, data: UpdateCategoryBody) {
   return prisma.category.update({ where: { id }, data: updateData });
 }
 
+export function setCategoryImage(id: string, image: { imageUrl: string; imageObjectKey: string } | null) {
+  return prisma.category.update({
+    where: { id },
+    data: image ?? { imageUrl: null, imageObjectKey: null },
+  });
+}
+
 export async function categoryReferences(id: string) {
   const [children, products] = await prisma.$transaction([
     prisma.category.count({ where: { parentId: id } }),

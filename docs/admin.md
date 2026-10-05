@@ -216,3 +216,8 @@ app.use("/api/v1/admin", adminRouter);
   confirmation and the itemised receipt (`web_order_confirmation`). The separate
   `web_payment_receipt` email is no longer sent. Templates live in
   `src/shared/email/email-templates.ts`.
+
+- **Category image.** `POST /api/v1/admin/categories/:id/image` (multipart field `image`; JPEG, PNG or
+  WebP up to 8 MB) sets or replaces the storefront image for a category;
+  `DELETE /api/v1/admin/categories/:id/image` removes it. The public `GET /api/v1/categories`
+  returns `imageUrl` (null when none is set).

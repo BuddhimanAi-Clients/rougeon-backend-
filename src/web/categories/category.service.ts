@@ -1,7 +1,7 @@
 import type { Category } from '@prisma/client';
 import * as categoryRepository from './category.repository.js';
 
-type PublicCategory = Pick<Category, 'id' | 'name' | 'slug' | 'parentId'> & {
+type PublicCategory = Pick<Category, 'id' | 'name' | 'slug' | 'parentId' | 'imageUrl'> & {
   children: PublicCategory[];
 };
 

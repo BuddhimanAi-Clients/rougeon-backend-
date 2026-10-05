@@ -22,6 +22,16 @@ export const updateCategory: RequestHandler = async (request, response) => {
   });
 };
 
+export const setCategoryImage: RequestHandler = async (request, response) => {
+  const { id } = validatedParams<CategoryIdParams>(request);
+  response.status(200).json({ data: await categoryService.setCategoryImage(id, request.file) });
+};
+
+export const removeCategoryImage: RequestHandler = async (request, response) => {
+  const { id } = validatedParams<CategoryIdParams>(request);
+  response.status(200).json({ data: await categoryService.removeCategoryImage(id) });
+};
+
 export const deleteCategory: RequestHandler = async (request, response) => {
   const { id } = validatedParams<CategoryIdParams>(request);
   await categoryService.deleteCategory(id);
