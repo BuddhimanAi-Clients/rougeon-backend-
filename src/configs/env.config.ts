@@ -30,6 +30,9 @@ const envSchema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   SHIPPING_FEE: moneySchema.default('150.00'),
   NCM_PICKUP_FEE: moneySchema.default('15.00'),
+  // ncm: delivery is quoted live from Nepal Can Move for the customer's
+  // delivery area. flat: every order pays SHIPPING_FEE (tests, emergencies).
+  SHIPPING_RATE_MODE: z.enum(['ncm', 'flat']).default('ncm'),
   NCM_API_BASE_URL: z.url().optional(),
   NCM_API_TOKEN: z.string().trim().min(1).optional(),
   NCM_WEBHOOK_SECRET: z.string().trim().min(32).optional(),

@@ -16,6 +16,8 @@ const guestCheckoutSchema = z
         phone: z.string().trim().min(5).max(30),
         fullAddress: z.string().trim().min(5).max(2_000),
         city: z.string().trim().min(1).max(120),
+        // Nepal Can Move delivery area; required while live rates are on.
+        ncmBranch: z.string().trim().min(1).max(120).optional(),
       })
       .strict(),
     paymentMethod: z.enum(['qr', 'cod']).default('qr'),

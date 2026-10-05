@@ -8,13 +8,13 @@ import {
   UserRole,
   WebPaymentMethod,
 } from '@prisma/client';
-import { envVariables } from '../../configs/env.config.js';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { CartOwner } from '../cart/cart.schemas.js';
 import { paymentInstructions } from '../payments/payment-instructions.service.js';
 import { requireCompleteUserProfile } from '../../shared/customers/customer.service.js';
 import { membershipSnapshot, quoteMembership } from '../../shared/membership/membership.service.js';
 import { computeMembershipDiscount } from '../../shared/membership/discount.js';
+import { quoteDelivery } from '../../shared/shipping/rates.service.js';
 import type { CheckoutBody } from './checkout.schemas.js';
 import * as checkoutRepository from './checkout.repository.js';
 
@@ -30,7 +30,21 @@ function firstProductImage(images: Prisma.JsonValue) {
   return images.find((image): image is string => typeof image === 'string');
 }
 
-export function checkout(owner: CartOwner, input: CheckoutBody) {
+export async function checkout(owner: CartOwner, input: CheckoutBody) {
+  // The courier is asked before the transaction opens: a slow NCM response
+  // must never hold cart and stock locks.
+  let requestedBranch: string | null = null;
+  if ('guest' in input) {
+    requestedBranch = input.guest.ncmBranch ?? null;
+  } else if ('userId' in owner) {
+    const address = await checkoutRepository.findAddressBranch(owner.userId, input.shippingAddressId);
+    if (!address) {
+      throw new AppError(404, 'ADDRESS_NOT_FOUND', 'Address was not found');
+    }
+    requestedBranch = address.ncmBranch;
+  }
+  const deliveryQuote = await quoteDelivery(requestedBranch);
+
   return checkoutRepository.runCheckoutTransaction(async (transaction) => {
     const cart = await checkoutRepository.findCart(transaction, owner);
     if (!cart) {
@@ -77,6 +91,9 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
       }
       if (!address) {
         throw new AppError(404, 'ADDRESS_NOT_FOUND', 'Address was not found');
+      }
+      if ((address.ncmBranch ?? null) !== requestedBranch) {
+        throw new AppError(409, 'ADDRESS_CHANGED', 'Your address changed. Please review delivery and try again.');
       }
       const profile = await requireCompleteUserProfile(transaction, owner.userId);
       const membership = await quoteMembership(transaction, profile.id);
@@ -148,9 +165,9 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
     const merchandiseDiscount = discount.discount;
     if (merchandiseDiscount.isZero()) membershipDiscountPercent = new Prisma.Decimal(0);
     const discountedMerchandise = subtotal.minus(merchandiseDiscount);
-    const shippingDeliveryFee = new Prisma.Decimal(envVariables.SHIPPING_FEE);
-    const shippingPickupFee = new Prisma.Decimal(envVariables.NCM_PICKUP_FEE);
-    const shippingFee = shippingDeliveryFee.plus(shippingPickupFee);
+    const shippingDeliveryFee = deliveryQuote.deliveryFee;
+    const shippingPickupFee = deliveryQuote.pickupFee;
+    const shippingFee = deliveryQuote.total;
     const total = discountedMerchandise.plus(shippingFee);
     const qrConfiguration = await checkoutRepository.findActivePaymentQrConfiguration(transaction);
     if (!qrConfiguration) {
@@ -174,6 +191,7 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
       shippingFee,
       shippingDeliveryFee,
       shippingPickupFee,
+      shippingBranch: deliveryQuote.branch,
       total,
       advancePaymentAmount,
       codCollectionAmount,
@@ -207,6 +225,7 @@ export function checkout(owner: CartOwner, input: CheckoutBody) {
         shippingFee: order.shippingFee.toFixed(2),
         shippingDeliveryFee: order.shippingDeliveryFee.toFixed(2),
         shippingPickupFee: order.shippingPickupFee.toFixed(2),
+        shippingBranch: order.shippingBranch,
         total: order.total.toFixed(2),
         advancePaymentAmount: order.advancePaymentAmount.toFixed(2),
         codCollectionAmount: order.codCollectionAmount.toFixed(2),

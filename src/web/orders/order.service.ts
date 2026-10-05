@@ -28,6 +28,7 @@ function orderResponse(order: OrderRecord) {
     shippingFee: order.shippingFee.toFixed(2),
     shippingDeliveryFee: order.shippingDeliveryFee.toFixed(2),
     shippingPickupFee: order.shippingPickupFee.toFixed(2),
+    shippingBranch: order.shippingBranch,
     total: order.total.toFixed(2),
     advancePaymentAmount: order.advancePaymentAmount.toFixed(2),
     codCollectionAmount: order.codCollectionAmount.toFixed(2),

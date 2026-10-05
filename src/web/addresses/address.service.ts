@@ -4,12 +4,16 @@ import type {
   UpdateAddressBody,
 } from './address.schemas.js';
 import * as addressRepository from './address.repository.js';
+import { normalizeBranch } from '../../shared/shipping/rates.service.js';
 
 export function getAddresses(userId: string) {
   return addressRepository.listAddresses(userId);
 }
 
-export function createAddress(userId: string, input: CreateAddressBody) {
+export async function createAddress(userId: string, raw: CreateAddressBody) {
+  // Checked against the courier's list before the transaction opens.
+  const ncmBranch = await normalizeBranch(raw.ncmBranch);
+  const input: CreateAddressBody = { ...raw, ...(ncmBranch ? { ncmBranch } : {}) };
   return addressRepository.runAddressTransaction(async (transaction) => {
     await addressRepository.lockUser(transaction, userId);
     const isFirstAddress =
@@ -27,11 +31,14 @@ export function createAddress(userId: string, input: CreateAddressBody) {
   });
 }
 
-export function updateAddress(
+export async function updateAddress(
   userId: string,
   id: string,
-  input: UpdateAddressBody,
+  raw: UpdateAddressBody,
 ) {
+  const input: UpdateAddressBody = raw.ncmBranch
+    ? { ...raw, ncmBranch: await normalizeBranch(raw.ncmBranch) }
+    : raw;
   return addressRepository.runAddressTransaction(async (transaction) => {
     await addressRepository.lockUser(transaction, userId);
     if (!(await addressRepository.findAddress(transaction, userId, id))) {
