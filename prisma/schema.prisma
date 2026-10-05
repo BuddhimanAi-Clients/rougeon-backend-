@@ -224,6 +224,9 @@ model Category {
   name     String
   slug     String     @unique
   parentId String?
+  // Optional storefront image (a model wearing the category), managed by Admin.
+  imageUrl String?
+  imageObjectKey String? @unique
   parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children Category[] @relation("CategoryHierarchy")
   products Product[]
