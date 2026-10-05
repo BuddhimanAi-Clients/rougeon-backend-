@@ -41,6 +41,7 @@ export async function syncQueuedSales(
         occurredAt: new Date(queuedSale.occurredAt),
         items: queuedSale.items,
         paymentMethod: queuedSale.paymentMethod,
+        ...(queuedSale.split ? { split: queuedSale.split } : {}),
       });
       results.push({
         index,

@@ -5,7 +5,9 @@ import {
 } from '../sales/sales.constants.js';
 import {
   posPaymentMethodSchema,
+  refineSplitPayment,
   saleItemSchema,
+  splitPaymentSchema,
 } from '../sales/sales.schemas.js';
 
 export const queuedSaleSchema = z
@@ -14,8 +16,10 @@ export const queuedSaleSchema = z
     occurredAt: z.iso.datetime({ offset: true }),
     items: z.array(saleItemSchema).min(1).max(MAX_POS_SALE_ITEMS),
     paymentMethod: posPaymentMethodSchema,
+    split: splitPaymentSchema.optional(),
   })
   .superRefine((value, context) => {
+    refineSplitPayment(value, context);
     const variantIds = new Set<string>();
     for (const [index, item] of value.items.entries()) {
       if (variantIds.has(item.variantId)) {

@@ -45,6 +45,8 @@ export async function getReceiptForStaff(
     },
     total: receipt.total.toFixed(2),
     paymentMethod: receipt.paymentMethod,
+    cashAmount: receipt.cashAmount.toFixed(2),
+    qrAmount: receipt.qrAmount.toFixed(2),
     customer: receipt.customerProfile
       ? { name: receipt.customerProfile.fullName, phone: receipt.customerProfile.normalizedPhone }
       : null,

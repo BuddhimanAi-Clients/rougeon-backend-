@@ -39,6 +39,8 @@ const storedSaleSelect = {
   membershipDiscountWaivedReason: true,
   total: true,
   paymentMethod: true,
+  cashAmount: true,
+  qrAmount: true,
   needsReview: true,
   createdAt: true,
   items: {
@@ -68,6 +70,8 @@ export type CreateSaleWithItemsInput = {
   occurredAt?: Date;
   saleNumber: string;
   paymentMethod: PosPaymentMethod;
+  cashAmount: Prisma.Decimal;
+  qrAmount: Prisma.Decimal;
   subtotal: Prisma.Decimal;
   merchandiseDiscount: Prisma.Decimal;
   membershipDiscountPercent: Prisma.Decimal;
@@ -140,6 +144,8 @@ export function createSaleWithItems(
       ...(input.occurredAt ? { createdAt: input.occurredAt } : {}),
       saleNumber: input.saleNumber,
       paymentMethod: input.paymentMethod,
+      cashAmount: input.cashAmount,
+      qrAmount: input.qrAmount,
       subtotal: input.subtotal,
       merchandiseDiscount: input.merchandiseDiscount,
       membershipDiscountPercent: input.membershipDiscountPercent,

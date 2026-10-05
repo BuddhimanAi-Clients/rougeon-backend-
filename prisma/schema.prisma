@@ -63,6 +63,7 @@ enum PaymentStatus {
 enum PosPaymentMethod {
   cash
   qr
+  split
 }
 
 // Refunds are completed manually by staff (there is no payment-provider payout API).
@@ -547,6 +548,10 @@ model PosSale {
   membershipDiscountWaivedReason String? @db.Text
   total         Decimal          @db.Decimal(12, 2)
   paymentMethod PosPaymentMethod
+  // How the total was paid. A single-method sale has the whole total in one
+  // of these; a split sale has part in each. They always add up to total.
+  cashAmount    Decimal          @default(0) @db.Decimal(12, 2)
+  qrAmount      Decimal          @default(0) @db.Decimal(12, 2)
   needsReview   Boolean          @default(false)
   createdAt     DateTime         @default(now())
   staff         User             @relation("StaffSales", fields: [staffId], references: [id], onDelete: Restrict)

@@ -32,6 +32,10 @@ POST /api/v1/pos/sales        create a sale — items + paymentMethod in the req
 GET  /api/v1/pos/sales         paginated sales — scoped to the logged-in cashier's own staffId
 GET  /api/v1/pos/sales/:id      get one sale's detail
 ```
+### Split payment (part cash, part QR)
+
+`paymentMethod` accepts `cash`, `qr` or `split`. A split sale also sends `"split": { "cashAmount": "2500.00", "qrAmount": "2000.00" }`. Both amounts must be above zero and add up to the server-calculated total, otherwise the sale is refused with `409 POS_SPLIT_TOTAL_MISMATCH` and nothing is saved. Every sale stores `cashAmount` and `qrAmount` (a cash-only sale has the whole total in `cashAmount`), and sale, receipt and Admin responses return both. An offline-synced split that does not add up keeps the QR amount, puts the remainder on cash and is flagged `needsReview`.
+
 No `PATCH`/`DELETE` — intentional. A completed sale is a finalized, paid transaction; cashiers don't edit or delete history. Corrections (returns/refunds) would be an admin-only action on a separate endpoint, not in scope yet.
 
 **Request shape** (no prices sent from frontend — server looks up real current price):

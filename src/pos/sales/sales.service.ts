@@ -26,6 +26,7 @@ import { computeMembershipDiscount } from '../../shared/membership/discount.js';
 import { createEmailOutbox } from '../../shared/email/email.service.js';
 import { posReceiptEmail } from '../../shared/email/email-templates.js';
 import { logger } from '../../configs/logger.config.js';
+import { resolvePosPayment, type SplitInput } from './payment-split.js';
 
 export type CreateSaleInput = {
   items: {
@@ -33,6 +34,7 @@ export type CreateSaleInput = {
     qty: number;
   }[];
   paymentMethod: PosPaymentMethod;
+  split?: SplitInput | undefined;
   customerProfileId?: string;
   applyMembershipDiscount?: boolean;
   discountWaiverReason?: string | undefined;
@@ -103,6 +105,8 @@ function serializeSale(sale: StoredSale) {
     membershipDiscountWaivedPercent: sale.membershipDiscountWaivedPercent.toFixed(2),
     membershipDiscountWaivedAmount: sale.membershipDiscountWaivedAmount.toFixed(2),
     total: sale.total.toFixed(2),
+    cashAmount: sale.cashAmount.toFixed(2),
+    qrAmount: sale.qrAmount.toFixed(2),
     items: sale.items.map((item) => ({
       ...item,
       price: item.price.toFixed(2),
@@ -285,6 +289,10 @@ async function createSaleWithInventoryPolicy(
       const merchandiseDiscount = applied.discount;
       const total = subtotal.minus(merchandiseDiscount);
 
+      // Offline sales already happened, so a split that does not add up is
+      // corrected and flagged instead of being refused.
+      const payment = resolvePosPayment(input.paymentMethod, total, input.split, { lenient: Boolean(offlineInput) });
+
       const tierSnapshot = membership?.tier ? membershipSnapshot(membership.tier) : null;
       const createdSale = await createSaleWithItems(transaction, {
         staffId,
@@ -294,6 +302,8 @@ async function createSaleWithInventoryPolicy(
         ...(offlineInput ? { occurredAt: offlineInput.occurredAt } : {}),
         saleNumber,
         paymentMethod: input.paymentMethod,
+        cashAmount: payment.cashAmount,
+        qrAmount: payment.qrAmount,
         subtotal,
         merchandiseDiscount,
         membershipDiscountPercent: appliedPercent,
@@ -310,7 +320,7 @@ async function createSaleWithInventoryPolicy(
         left.variantId.localeCompare(right.variantId),
       );
 
-      let needsReview = false;
+      let needsReview = payment.adjusted;
 
       for (const item of inventoryItems) {
         const inventoryResult = await changeInventory({
@@ -328,6 +338,18 @@ async function createSaleWithInventoryPolicy(
 
       if (needsReview) {
         await markSaleNeedsReview(transaction, createdSale.id);
+      }
+
+      if (input.paymentMethod === 'split') {
+        logger.info('POS sale paid by split payment', {
+          saleId: createdSale.id,
+          saleNumber: createdSale.saleNumber,
+          staffId,
+          total: total.toFixed(2),
+          cashAmount: payment.cashAmount.toFixed(2),
+          qrAmount: payment.qrAmount.toFixed(2),
+          adjusted: payment.adjusted,
+        });
       }
 
       if (discountWaived) {
@@ -352,6 +374,8 @@ async function createSaleWithInventoryPolicy(
           createdAt: createdSale.createdAt,
           cashierName: staff.name,
           paymentMethod: input.paymentMethod,
+          cashAmount: payment.cashAmount,
+          qrAmount: payment.qrAmount,
           items: saleItems.map((item) => ({ ...item, lineTotal: item.price.mul(item.qty) })),
           subtotal,
           merchandiseDiscount,
