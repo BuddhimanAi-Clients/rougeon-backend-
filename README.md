@@ -160,10 +160,13 @@ Customer-only routes:
 - `/api/v1/addresses/*`
 - `GET /api/v1/orders`
 
-Website checkout currently applies the backend-configured base carrier delivery
-fee (`SHIPPING_FEE`, default `150.00`) plus the fixed NCM vendor pickup charge
-(`NCM_PICKUP_FEE`, default `15.00`). Both components and their total are
-snapshotted on every new order. COD orders additionally snapshot the configured
+Website checkout prices delivery live from Nepal Can Move (`SHIPPING_RATE_MODE=ncm`,
+the default): the customer picks a delivery area (an NCM branch), the backend asks
+NCM for the rate from `NCM_DEFAULT_PICKUP_BRANCH` to that branch and adds the
+store's own collection charge (`NCM_PICKUP_FEE`, default `15.00`). Customers only
+ever see the combined amount as one Delivery line. `SHIPPING_RATE_MODE=flat`
+charges `SHIPPING_FEE` + `NCM_PICKUP_FEE` instead. Both components, their total
+and the chosen branch are snapshotted on every new order. COD orders additionally snapshot the configured
 merchandise-advance percentage; payment pages, order details, and receipts show
 the QR advance and the amount Nepal Can Move will collect on delivery. It
 requires an active payment QR configuration and snapshots it on the payment

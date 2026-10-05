@@ -231,6 +231,17 @@ Rules:
 
 ---
 
+## Delivery areas and delivery fee
+
+```http
+GET /api/v1/shipping/branches
+GET /api/v1/shipping/quote?branch=BIRATNAGAR
+```
+
+Public. `branches` returns the Nepal Can Move delivery areas (`name`, `district`, `province`, `areas`), cached server-side for 12 hours. `quote` returns `{ branch, deliveryFee }` where `deliveryFee` is the single amount the customer pays: NCM's live rate from the store's pickup branch plus the store collection charge. The split is never sent to the storefront.
+
+Addresses accept an optional `ncmBranch` (must match a branch name). Guest checkout sends `guest.ncmBranch`. With `SHIPPING_RATE_MODE=ncm`, checkout fails with `422 DELIVERY_AREA_REQUIRED` when no area is set, `422 DELIVERY_AREA_INVALID` for an unknown one, and `503 SHIPPING_RATE_UNAVAILABLE` when NCM cannot be reached and no cached rate exists. The order stores the area as `shippingBranch`, which prefills courier booking in Admin.
+
 ## 6. Saved addresses
 
 Saved-address routes require an authenticated customer:

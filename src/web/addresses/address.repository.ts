@@ -78,6 +78,7 @@ export function createAddress(
       label: input.label,
       fullAddress: input.fullAddress,
       city: input.city,
+      ncmBranch: input.ncmBranch ?? null,
       phone: input.phone,
       isDefault,
     },
@@ -93,6 +94,7 @@ export function updateAddress(
   if (input.label !== undefined) data.label = input.label;
   if (input.fullAddress !== undefined) data.fullAddress = input.fullAddress;
   if (input.city !== undefined) data.city = input.city;
+  if (input.ncmBranch !== undefined) data.ncmBranch = input.ncmBranch;
   if (input.phone !== undefined) data.phone = input.phone;
   if (input.isDefault !== undefined) data.isDefault = input.isDefault;
   return transaction.address.update({ where: { id }, data });

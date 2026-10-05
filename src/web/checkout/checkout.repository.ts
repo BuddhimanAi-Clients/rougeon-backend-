@@ -59,6 +59,14 @@ export function findAddress(
   });
 }
 
+/** Read outside the checkout transaction so the courier quote can be fetched first. */
+export function findAddressBranch(userId: string, addressId: string) {
+  return prisma.address.findFirst({
+    where: { id: addressId, userId },
+    select: { ncmBranch: true },
+  });
+}
+
 export function findUser(transaction: Prisma.TransactionClient, userId: string) {
   return transaction.user.findUnique({
     where: { id: userId },
