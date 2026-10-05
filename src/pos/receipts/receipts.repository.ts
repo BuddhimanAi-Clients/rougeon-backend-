@@ -14,6 +14,8 @@ export function getReceiptBySaleIdAndStaffId(
       cashierName: true,
       createdAt: true,
       paymentMethod: true,
+      cashAmount: true,
+      qrAmount: true,
       subtotal: true,
       merchandiseDiscount: true,
       membershipDiscountPercent: true,

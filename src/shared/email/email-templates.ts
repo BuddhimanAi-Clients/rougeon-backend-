@@ -154,7 +154,9 @@ export function posReceiptEmail(input: {
   saleNumber: string;
   createdAt: Date;
   cashierName: string;
-  paymentMethod: 'cash' | 'qr';
+  paymentMethod: 'cash' | 'qr' | 'split';
+  cashAmount?: Money;
+  qrAmount?: Money;
   items: readonly BillItem[];
   subtotal: Money;
   merchandiseDiscount: Money;
@@ -169,7 +171,9 @@ export function posReceiptEmail(input: {
   const rows: BillRow[] = [{ label: 'Subtotal', value: formatMoney(input.subtotal) }];
   if (hasDiscount) rows.push({ label: `Member discount${input.tierName ? ` (${input.tierName} ${formatPercent(input.membershipDiscountPercent)})` : ''}`, value: `-${formatMoney(input.merchandiseDiscount)}` });
   rows.push({ label: 'Total paid', value: formatMoney(input.total), strong: true });
-  const payment = input.paymentMethod === 'qr' ? 'QR payment' : 'Cash';
+  const payment = input.paymentMethod === 'split' && input.cashAmount && input.qrAmount
+    ? `QR ${formatMoney(input.qrAmount)} + Cash ${formatMoney(input.cashAmount)}`
+    : input.paymentMethod === 'qr' ? 'QR payment' : 'Cash';
   const meta: Array<[string, string]> = [
     ['Receipt no.', input.saleNumber],
     ['Date', formatDate(input.createdAt)],
