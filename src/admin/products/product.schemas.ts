@@ -22,7 +22,9 @@ export const updateProductBodySchema = z
     name: productFields.name.optional(),
     slug: productFields.slug.optional(),
     description: productFields.description.optional(),
-    images: productFields.images.optional(),
+    // No default here: an update that does not mention images must leave the
+    // product's photos exactly as they are.
+    images: z.array(z.url()).max(20).optional(),
     status: productFields.status.optional(),
     membershipDiscountEligible: z.boolean().optional(),
   })

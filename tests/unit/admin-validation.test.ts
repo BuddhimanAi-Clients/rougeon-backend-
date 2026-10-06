@@ -46,3 +46,10 @@ describe('Admin request schemas', () => {
     );
   });
 });
+
+test('a product update that does not mention images leaves them untouched', async () => {
+  const { updateProductBodySchema } = await import('../../src/admin/products/product.schemas.js');
+  const parsed = updateProductBodySchema.parse({ status: 'active' });
+  assert.equal('images' in parsed, false);
+  assert.deepEqual(updateProductBodySchema.parse({ images: [] }).images, []);
+});
