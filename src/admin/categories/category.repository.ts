@@ -2,7 +2,11 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../configs/database.config.js';
 import type { CreateCategoryBody, UpdateCategoryBody } from './category.schemas.js';
 
-export function createCategory(data: CreateCategoryBody) {
+export function slugExists(slug: string) {
+  return prisma.category.findUnique({ where: { slug }, select: { id: true } });
+}
+
+export function createCategory(data: CreateCategoryBody & { slug: string }) {
   const createData: Prisma.CategoryUncheckedCreateInput = {
     name: data.name,
     slug: data.slug,

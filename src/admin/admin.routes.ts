@@ -11,6 +11,7 @@ import { variantRouter } from './variants/variant.routes.js';
 import { paymentSettingsRouter } from './payment-settings/payment-settings.routes.js';
 import { adminCustomerRouter } from './customers/customer.routes.js';
 import { membershipTierRouter } from './membership-tiers/membership-tier.routes.js';
+import { importRouter } from './imports/import.routes.js';
 
 export const adminRouter = Router();
 
@@ -27,3 +28,4 @@ adminRouter.use('/dashboards', dashboardRouter);
 adminRouter.use('/payment-settings', paymentSettingsRouter);
 adminRouter.use('/customers', adminCustomerRouter);
 adminRouter.use('/membership-tiers', membershipTierRouter);
+adminRouter.use('/imports', importRouter);

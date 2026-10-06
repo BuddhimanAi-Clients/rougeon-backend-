@@ -9,7 +9,8 @@ const categoryFields = {
 export const categoryIdParamsSchema = z.object({ id: z.string().trim().min(1).max(128) });
 export const createCategoryBodySchema = z.object({
   name: categoryFields.name,
-  slug: categoryFields.slug,
+  // Left out, the slug is generated from the name.
+  slug: categoryFields.slug.optional(),
   parentId: categoryFields.parentId.optional(),
 });
 export const updateCategoryBodySchema = z

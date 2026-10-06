@@ -2,6 +2,7 @@ import type { Category } from '@prisma/client';
 import { AppError } from '../../shared/errors/app-error.js';
 import type { CreateCategoryBody, UpdateCategoryBody } from './category.schemas.js';
 import * as categoryRepository from './category.repository.js';
+import { generateSlug } from '../../shared/catalog/catalog-db.js';
 import { createObjectKey, deleteObject, inspectImage, publicMediaUrl, uploadImage } from '../../shared/media/media.service.js';
 
 const MAX_CATEGORY_IMAGE_BYTES = 8 * 1024 * 1024;
@@ -16,7 +17,8 @@ async function requireParent(parentId: string | null | undefined) {
 
 export async function createCategory(input: CreateCategoryBody) {
   await requireParent(input.parentId);
-  return categoryRepository.createCategory(input);
+  const slug = input.slug ?? await generateSlug(input.name, async (candidate) => Boolean(await categoryRepository.slugExists(candidate)));
+  return categoryRepository.createCategory({ ...input, slug });
 }
 
 export async function getCategoryTree(): Promise<CategoryTree[]> {

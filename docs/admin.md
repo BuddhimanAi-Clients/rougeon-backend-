@@ -221,3 +221,25 @@ app.use("/api/v1/admin", adminRouter);
   WebP up to 8 MB) sets or replaces the storefront image for a category;
   `DELETE /api/v1/admin/categories/:id/image` removes it. The public `GET /api/v1/categories`
   returns `imageUrl` (null when none is set).
+
+
+## Catalogue helpers and bulk import
+
+- **Slugs:** `POST /admin/categories` and `POST /admin/products` accept a missing `slug`; it is generated from the name (lowercase, hyphens) with a number added when taken.
+- **Variants:** `sku` may be omitted and is then built from product, colour and size (`PROJECT-REQUIEM-ZIPUP-GRY-M`). Sizes are stored in capitals and colours in Title Case; common spellings map to one value (`Medium` -> `M`, `Gray` -> `Grey`). A second variant with the same colour and size on a product is refused with `409 VARIANT_ALREADY_EXISTS`.
+- **Photos by colour:** `POST /admin/products/:id/images` accepts a `color` form field (must be a colour the product has) and `skipExisting=true` (skips files already imported for that colour, by file name). `PATCH /admin/products/:id/images/:imageId` with `{ "color": "Grey" | null }` relabels a photo. The public product response adds `media: [{ url, color }]`; `color: null` means a general photo.
+- **Rename a colour:** `PATCH /admin/products/:id/colors` with `{ "from": "Gery", "to": "Grey" }` moves that product's variants and photos together.
+- **Options:** `GET /admin/products/options` returns the standard size list and the colours already in use.
+
+### Bulk import
+
+The Admin app reads the Excel file and photo folders in the browser and sends rows as JSON.
+
+```http
+POST /api/v1/admin/imports/products/check     report only, saves nothing
+POST /api/v1/admin/imports/products/apply     creates categories, products, variants in one transaction
+POST /api/v1/admin/imports/products/:id/complete   records the photo upload result
+GET  /api/v1/admin/imports/products           latest 20 runs
+```
+
+Body: `{ rows: [{ row, category, productName, description, colour, size, price, stock, status?, memberDiscount?, parentCategory?, sku? }], photos: [{ path, product, colour, file }], confirmedNew: ["colour:teal"] }`. The check response lists `errors` (block the import), `suggestions` (likely typos that must be answered), `warnings` and a `summary`. `apply` re-plans inside the transaction and refuses with `422 IMPORT_NOT_READY` while errors or unanswered suggestions remain. Existing products and variants are matched by name and by colour + size, so re-running never duplicates; an existing variant only has its price updated and its stock is never overwritten. Photos are then uploaded per product through the images endpoint with `skipExisting=true`.

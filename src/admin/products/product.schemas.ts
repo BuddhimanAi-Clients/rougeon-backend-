@@ -14,7 +14,8 @@ const productFields = {
 };
 
 export const productIdParamsSchema = z.object({ id: z.string().trim().min(1).max(128) });
-export const createProductBodySchema = z.object(productFields);
+// Left out, the slug is generated from the name.
+export const createProductBodySchema = z.object({ ...productFields, slug: productFields.slug.optional() });
 export const updateProductBodySchema = z
   .object({
     categoryId: productFields.categoryId.optional(),
@@ -37,3 +38,6 @@ export type ProductIdParams = z.infer<typeof productIdParamsSchema>;
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;
 export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;
+
+export const imageColorBodySchema = z.object({ color: z.string().trim().min(1).max(80).nullable() });
+export const renameColorBodySchema = z.object({ from: z.string().trim().min(1).max(80), to: z.string().trim().min(1).max(80) });

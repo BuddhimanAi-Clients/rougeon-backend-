@@ -22,7 +22,11 @@ export function findCategory(id: string) {
   return prisma.category.findUnique({ where: { id }, select: { id: true } });
 }
 
-export function createProduct(input: CreateProductBody) {
+export function slugExists(slug: string) {
+  return prisma.product.findUnique({ where: { slug }, select: { id: true } });
+}
+
+export function createProduct(input: CreateProductBody & { slug: string }) {
   return prisma.product.create({ data: input, include: { category: true, variants: true, media: { orderBy: { sortOrder: 'asc' } } } });
 }
 
@@ -74,12 +78,30 @@ export function findProductImage(productId: string, imageId: string) {
   return prisma.productImage.findFirst({ where: { id: imageId, productId } });
 }
 
-export function addProductImages(productId: string, images: Array<{ objectKey: string; publicUrl: string; detectedMimeType: string; byteSize: number; sortOrder: number }>) {
+export function addProductImages(productId: string, images: Array<{ objectKey: string; publicUrl: string; detectedMimeType: string; byteSize: number; sortOrder: number; color: string | null; sourceName: string | null }>) {
   return prisma.$transaction(async (transaction) => {
     await transaction.productImage.createMany({ data: images.map((image) => ({ ...image, productId })) });
     const all = await transaction.productImage.findMany({ where: { productId }, orderBy: { sortOrder: 'asc' } });
     return transaction.product.update({ where: { id: productId }, data: { images: all.map((image) => image.publicUrl) }, include: { category: true, media: { orderBy: { sortOrder: 'asc' } }, variants: true } });
   });
+}
+
+export function setProductImageColor(productId: string, imageId: string, color: string | null) {
+  return prisma.productImage.updateMany({ where: { id: imageId, productId }, data: { color } });
+}
+
+/** Renames a colour on every variant and photo of one product together. */
+export function renameProductColor(productId: string, from: string, to: string) {
+  return prisma.$transaction(async (transaction) => {
+    const variants = await transaction.productVariant.updateMany({ where: { productId, color: { equals: from, mode: 'insensitive' } }, data: { color: to } });
+    const images = await transaction.productImage.updateMany({ where: { productId, color: { equals: from, mode: 'insensitive' } }, data: { color: to } });
+    return { variants: variants.count, images: images.count };
+  });
+}
+
+export async function listCatalogColors() {
+  const rows = await prisma.productVariant.findMany({ distinct: ['color'], select: { color: true }, orderBy: { color: 'asc' } });
+  return rows.map((row) => row.color);
 }
 
 export function removeProductImage(productId: string, imageId: string) {
