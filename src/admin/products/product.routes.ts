@@ -5,6 +5,8 @@ import * as productController from './product.controller.js';
 import { imageUpload, mediaUploadError } from '../../shared/media/media.middleware.js';
 import {
   createProductBodySchema,
+  imageColorBodySchema,
+  renameColorBodySchema,
   listProductsQuerySchema,
   productIdParamsSchema,
   updateProductBodySchema,
@@ -12,9 +14,12 @@ import {
 
 export const productRouter = Router();
 
+productRouter.get('/options', productController.catalogOptions);
 productRouter.post('/', validateRequest({ body: createProductBodySchema }), productController.createProduct);
 productRouter.get('/', validateRequest({ query: listProductsQuerySchema }), productController.listProducts);
 productRouter.post('/:id/images', validateRequest({ params: productIdParamsSchema }), imageUpload(8 * 1024 * 1024, 20).array('images', 20), mediaUploadError, productController.addImages);
+productRouter.patch('/:id/images/:imageId', validateRequest({ params: productIdParamsSchema, body: imageColorBodySchema }), productController.setImageColor);
+productRouter.patch('/:id/colors', validateRequest({ params: productIdParamsSchema, body: renameColorBodySchema }), productController.renameColor);
 productRouter.delete('/:id/images/:imageId', validateRequest({ params: productIdParamsSchema }), productController.removeImage);
 productRouter.use('/:id/variants', productVariantRouter);
 productRouter.get('/:id', validateRequest({ params: productIdParamsSchema }), productController.getProduct);

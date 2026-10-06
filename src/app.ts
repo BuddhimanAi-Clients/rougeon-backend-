@@ -30,6 +30,8 @@ app.use(
 // Better Auth must receive the untouched request body.
 app.all('/api/v1/auth/*splat', authEmailRateLimit, toNodeHandler(auth));
 
+// A bulk product import sends the whole spreadsheet as JSON.
+app.use('/api/v1/admin/imports', express.json({ limit: '8mb' }));
 app.use(express.json({ limit: '1mb' }));
 
 const healthHandler: express.RequestHandler = (_request, response) => {

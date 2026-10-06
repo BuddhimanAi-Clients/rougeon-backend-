@@ -3,7 +3,15 @@ import { prisma } from '../../configs/database.config.js';
 import type { CreateVariantBody, UpdateVariantBody } from './variant.schemas.js';
 
 export function findProduct(id: string) {
-  return prisma.product.findUnique({ where: { id }, select: { id: true } });
+  return prisma.product.findUnique({ where: { id }, select: { id: true, name: true } });
+}
+
+export function listSiblings(productId: string) {
+  return prisma.productVariant.findMany({ where: { productId }, select: { id: true, size: true, color: true } });
+}
+
+export function skuExists(sku: string) {
+  return prisma.productVariant.findUnique({ where: { sku }, select: { id: true } });
 }
 
 export function runVariantTransaction<T>(
@@ -15,7 +23,7 @@ export function runVariantTransaction<T>(
 export function createVariant(
   transaction: Prisma.TransactionClient,
   productId: string,
-  input: CreateVariantBody,
+  input: CreateVariantBody & { sku: string },
 ) {
   return transaction.productVariant.create({
     data: {

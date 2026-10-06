@@ -153,6 +153,7 @@ model User {
   customerProfile CustomerProfile?
   membershipSignupClaim MembershipSignupClaim?
   membershipTierAudits MembershipTierAudit[]
+  productImports   ProductImport[]
 
   @@map("users")
 }
@@ -266,13 +267,32 @@ model ProductImage {
   detectedMimeType String?
   byteSize         Int?
   sortOrder        Int
+  // The variant colour these photos show. Null means a general photo that
+  // suits every colour.
+  color            String?
+  // Original file name, so re-running an import does not upload it twice.
+  sourceName       String?
   isLegacy         Boolean  @default(false)
   createdAt        DateTime @default(now())
   product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, sortOrder])
   @@index([productId])
+  @@index([productId, color])
   @@map("product_images")
+}
+
+// Audit trail of bulk product imports run from Admin.
+model ProductImport {
+  id          String    @id @default(cuid())
+  actorId     String?
+  summary     Json
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  actor       User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("product_imports")
 }
 
 model ProductVariant {

@@ -44,6 +44,8 @@ export function toPublicProduct(
     slug: product.slug,
     description: product.description,
     images: imageUrls(product.images),
+    // Photos with the colour they show; a null colour suits every colour.
+    media: product.media.map((image) => ({ url: image.publicUrl, color: image.color })),
     membershipDiscountEligible: product.membershipDiscountEligible,
     createdAt: product.createdAt,
     category: product.category,

@@ -81,6 +81,7 @@ export async function listPublicProducts(query: PublicProductListQuery) {
     include: {
       category: { select: { id: true, name: true, slug: true } },
       variants: { orderBy: [{ sku: 'asc' }, { id: 'asc' }] },
+      media: { orderBy: { sortOrder: 'asc' }, select: { publicUrl: true, color: true } },
     },
   });
   const byId = new Map(products.map((product) => [product.id, product]));
@@ -100,6 +101,7 @@ export function findPublicProductBySlug(slug: string) {
     include: {
       category: { select: { id: true, name: true, slug: true } },
       variants: { orderBy: [{ sku: 'asc' }, { id: 'asc' }] },
+      media: { orderBy: { sortOrder: 'asc' }, select: { publicUrl: true, color: true } },
     },
   });
 }

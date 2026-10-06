@@ -9,7 +9,8 @@ const moneySchema = z
 export const productVariantParamsSchema = z.object({ id: z.string().trim().min(1).max(128) });
 export const variantIdParamsSchema = z.object({ variantId: z.string().trim().min(1).max(128) });
 export const createVariantBodySchema = z.object({
-  sku: z.string().trim().min(1).max(100),
+  // Left out, the SKU is generated from the product, colour and size.
+  sku: z.string().trim().min(1).max(100).optional(),
   size: z.string().trim().min(1).max(80),
   color: z.string().trim().min(1).max(80),
   price: moneySchema,
