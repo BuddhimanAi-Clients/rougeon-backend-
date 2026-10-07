@@ -74,7 +74,7 @@ export async function addImages(
   if (product.media.length + fresh.length > MAX_PRODUCT_IMAGES) {
     throw new AppError(400, 'PRODUCT_IMAGE_LIMIT', `A product can have at most ${MAX_PRODUCT_IMAGES} images`);
   }
-  const inspected = await Promise.all(fresh.map((file) => inspectImage(file, MAX_PRODUCT_IMAGE_BYTES)));
+  const inspected = await Promise.all(fresh.map((file) => inspectImage(file, MAX_PRODUCT_IMAGE_BYTES, { pngOnly: true })));
   const uploads = inspected.map((image, index) => ({ image, sourceName: fresh[index]!.originalname.slice(0, 200), objectKey: createObjectKey(`products/${id}`, image.extension) }));
   const uploaded: string[] = [];
   // After a photo is removed the count can be lower than the highest position.

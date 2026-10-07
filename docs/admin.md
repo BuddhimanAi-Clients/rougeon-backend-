@@ -217,8 +217,8 @@ app.use("/api/v1/admin", adminRouter);
   `web_payment_receipt` email is no longer sent. Templates live in
   `src/shared/email/email-templates.ts`.
 
-- **Category image.** `POST /api/v1/admin/categories/:id/image` (multipart field `image`; JPEG, PNG or
-  WebP up to 8 MB) sets or replaces the storefront image for a category;
+- **Category image.** `POST /api/v1/admin/categories/:id/image` (multipart field `image`; PNG only,
+  up to 8 MB) sets or replaces the storefront image for a category;
   `DELETE /api/v1/admin/categories/:id/image` removes it. The public `GET /api/v1/categories`
   returns `imageUrl` (null when none is set).
 
@@ -243,3 +243,8 @@ GET  /api/v1/admin/imports/products           latest 20 runs
 ```
 
 Body: `{ rows: [{ row, category, productName, description, colour, size, price, stock, status?, memberDiscount?, parentCategory?, sku? }], photos: [{ path, product, colour, file }], confirmedNew: ["colour:teal"] }`. The check response lists `errors` (block the import), `suggestions` (likely typos that must be answered), `warnings` and a `summary`. `apply` re-plans inside the transaction and refuses with `422 IMPORT_NOT_READY` while errors or unanswered suggestions remain. Existing products and variants are matched by name and by colour + size, so re-running never duplicates; an existing variant only has its price updated and its stock is never overwritten. Photos are then uploaded per product through the images endpoint with `skipExisting=true`.
+
+
+### PNG-only catalogue photos
+
+Product photos (`POST /admin/products/:id/images`) and category photos (`POST /admin/categories/:id/image`) accept PNG only. The check is on the file's real contents, so a renamed JPEG is refused with `400 PNG_REQUIRED`. The bulk import check reports every non-PNG picture in the photos folder as an error. Payment QR images and customer payment proofs still accept JPEG, PNG and WebP. Photos stored before this rule are left as they are.

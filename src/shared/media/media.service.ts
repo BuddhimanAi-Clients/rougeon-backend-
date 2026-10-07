@@ -48,7 +48,11 @@ function extensionFromFileName(name: string) {
   return extension === 'jpeg' ? 'jpg' : extension;
 }
 
-export async function inspectImage(file: Express.Multer.File, maxBytes: number): Promise<InspectedImage> {
+/**
+ * Checks an upload by its real contents, not its name. Catalogue photos
+ * (products and categories) must be PNG; pass `pngOnly` for those.
+ */
+export async function inspectImage(file: Express.Multer.File, maxBytes: number, options: { pngOnly?: boolean } = {}): Promise<InspectedImage> {
   if (!file.buffer || file.buffer.length === 0) {
     throw new AppError(400, 'IMAGE_REQUIRED', 'An image file is required');
   }
@@ -58,7 +62,10 @@ export async function inspectImage(file: Express.Multer.File, maxBytes: number):
   const detected = await fileTypeFromBuffer(file.buffer);
   const extension = detected?.ext === 'jpeg' ? 'jpg' : detected?.ext;
   if (!detected || !allowedImageTypes.has(detected.mime) || !extension) {
-    throw new AppError(400, 'UNSUPPORTED_IMAGE_TYPE', 'Only JPEG, PNG, and WebP images are allowed');
+    throw new AppError(400, 'UNSUPPORTED_IMAGE_TYPE', options.pngOnly ? 'Only PNG images are accepted' : 'Only JPEG, PNG, and WebP images are allowed');
+  }
+  if (options.pngOnly && detected.mime !== 'image/png') {
+    throw new AppError(400, 'PNG_REQUIRED', `"${file.originalname}" is not a PNG image. Product and category photos must be PNG: open the photo, save or export it as PNG, and upload that file.`);
   }
   if (file.mimetype && file.mimetype !== detected.mime) {
     throw new AppError(400, 'IMAGE_TYPE_MISMATCH', 'The uploaded file type does not match its contents');
