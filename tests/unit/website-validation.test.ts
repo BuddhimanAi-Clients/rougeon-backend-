@@ -47,6 +47,10 @@ describe('Website request schemas', () => {
       true,
     );
     assert.equal(checkoutBodySchema.safeParse({}).success, false);
+    const home = checkoutBodySchema.parse({ shippingAddressId: 'address-1' });
+    assert.equal(home.deliveryType, 'Door2Door');
+    assert.equal(checkoutBodySchema.parse({ shippingAddressId: 'address-1', deliveryType: 'Door2Branch' }).deliveryType, 'Door2Branch');
+    assert.equal(checkoutBodySchema.safeParse({ shippingAddressId: 'address-1', deliveryType: 'Branch2Branch' }).success, false);
     assert.equal(
       checkoutBodySchema.safeParse({ shippingAddressId: 'address-1', total: '1.00' }).success,
       false,

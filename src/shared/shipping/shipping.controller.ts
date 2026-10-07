@@ -6,4 +6,4 @@ export const book: RequestHandler = async (req, res) => { res.status(201).json({
 export const webhook: RequestHandler = async (req, res) => { await service.processNcmWebhook(req.body); res.status(204).end(); };
 export const branches: RequestHandler = async (_req, res) => { res.set('Cache-Control', 'public, max-age=3600').json({ data: await rates.listBranches() }); };
 // Customers only ever see one Delivery amount, so the split stays server-side.
-export const quote: RequestHandler = async (req, res) => { const result = await rates.quoteDelivery(validatedQuery<{ branch: string }>(req).branch); res.json({ data: { branch: result.branch, deliveryFee: result.total.toFixed(2) } }); };
+export const quote: RequestHandler = async (req, res) => { const options = await rates.quoteDeliveryOptions(validatedQuery<{ branch: string }>(req).branch); const home = options[0]!; res.json({ data: { branch: home.branch, deliveryFee: home.total.toFixed(2), options: options.map((option) => ({ deliveryType: option.deliveryType, deliveryFee: option.total.toFixed(2) })) } }); };

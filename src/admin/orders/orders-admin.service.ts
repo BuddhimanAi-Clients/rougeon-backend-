@@ -193,6 +193,7 @@ export function verifyPayment(id: string, adminId: string, action: 'confirm' | '
           advancePaymentAmount: order.advancePaymentAmount,
           codCollectionAmount: order.codCollectionAmount,
           delivery: { name: order.guestName, phone: order.guestPhone, fullAddress: order.guestFullAddress, city: order.guestCity },
+          collectBranch: order.shippingDeliveryType === 'Door2Branch' ? order.shippingBranch : null,
         },
       });
       await createEmailOutbox({ kind: EmailKind.web_order_confirmation, recipientEmail: receiptEmail, deduplicationKey: `web-order-confirmed:${order.id}`, payload: email }, transaction);

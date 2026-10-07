@@ -222,6 +222,8 @@ export type WebOrderBill = {
   advancePaymentAmount: Money;
   codCollectionAmount: Money;
   delivery?: { name: string | null; phone: string | null; fullAddress: string | null; city: string | null };
+  // Set when the customer collects the parcel from this courier branch.
+  collectBranch?: string | null | undefined;
 };
 
 function webOrderRows(order: WebOrderBill, stage: 'confirmed' | 'delivered') {
@@ -240,6 +242,10 @@ function webOrderRows(order: WebOrderBill, stage: 'confirmed' | 'delivered') {
 
 function deliveryBlock(order: WebOrderBill) {
   const delivery = order.delivery;
+  if (order.collectBranch) {
+    const who = [delivery?.name, delivery?.phone].filter((line): line is string => Boolean(line)).map(escapeHtml).join('<br>');
+    return note(`<strong style="letter-spacing:1px;text-transform:uppercase;font-size:11px;color:${MUTED};">Collect from</strong><br>Nepal Can Move, ${escapeHtml(order.collectBranch)} branch${who ? `<br>${who}` : ''}<br>The courier will call you when your parcel is ready to collect.`);
+  }
   if (!delivery?.fullAddress) return '';
   const lines = [delivery.name, delivery.fullAddress, delivery.city, delivery.phone].filter((line): line is string => Boolean(line)).map(escapeHtml).join('<br>');
   return note(`<strong style="letter-spacing:1px;text-transform:uppercase;font-size:11px;color:${MUTED};">Delivering to</strong><br>${lines}`);
@@ -259,7 +265,7 @@ export function webOrderConfirmedEmail(input: { customerName: string; order: Web
     ['Payment', order.paymentMethod === 'cod' ? 'Cash on delivery (advance paid)' : 'Paid in full by QR'],
   ];
   const cod = order.paymentMethod === 'cod'
-    ? note(`Please keep <strong>${formatMoney(order.codCollectionAmount)}</strong> ready to pay the Nepal Can Move courier when your parcel arrives.`)
+    ? note(`Please keep <strong>${formatMoney(order.codCollectionAmount)}</strong> ready to pay ${order.collectBranch ? 'at the Nepal Can Move branch when you collect your parcel' : 'the Nepal Can Move courier when your parcel arrives'}.`)
     : '';
   const membership = input.eligibleNetSpend ? note(`Membership spend this year: <strong>${formatMoney(input.eligibleNetSpend)}</strong>`) : '';
   const html = layout({
@@ -275,6 +281,7 @@ export function webOrderConfirmedEmail(input: { customerName: string; order: Web
     textItems(order.items),
     '',
     textRows(rows),
+    ...(order.collectBranch ? ['', `Collect from: Nepal Can Move, ${order.collectBranch} branch. The courier will call you when your parcel is ready.`] : []),
     ...(input.eligibleNetSpend ? ['', `Membership spend this year: ${formatMoney(input.eligibleNetSpend)}`] : []),
   ].join('\n');
   return { subject: `Order confirmed - ${order.orderNumber}`, html, text };

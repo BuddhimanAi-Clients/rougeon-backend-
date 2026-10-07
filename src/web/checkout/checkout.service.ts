@@ -43,7 +43,7 @@ export async function checkout(owner: CartOwner, input: CheckoutBody) {
     }
     requestedBranch = address.ncmBranch;
   }
-  const deliveryQuote = await quoteDelivery(requestedBranch);
+  const deliveryQuote = await quoteDelivery(requestedBranch, input.deliveryType);
 
   return checkoutRepository.runCheckoutTransaction(async (transaction) => {
     const cart = await checkoutRepository.findCart(transaction, owner);
@@ -192,6 +192,7 @@ export async function checkout(owner: CartOwner, input: CheckoutBody) {
       shippingDeliveryFee,
       shippingPickupFee,
       shippingBranch: deliveryQuote.branch,
+      shippingDeliveryType: deliveryQuote.deliveryType,
       total,
       advancePaymentAmount,
       codCollectionAmount,
@@ -226,6 +227,7 @@ export async function checkout(owner: CartOwner, input: CheckoutBody) {
         shippingDeliveryFee: order.shippingDeliveryFee.toFixed(2),
         shippingPickupFee: order.shippingPickupFee.toFixed(2),
         shippingBranch: order.shippingBranch,
+        shippingDeliveryType: order.shippingDeliveryType,
         total: order.total.toFixed(2),
         advancePaymentAmount: order.advancePaymentAmount.toFixed(2),
         codCollectionAmount: order.codCollectionAmount.toFixed(2),
