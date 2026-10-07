@@ -6,7 +6,7 @@ import { validateRequest } from '../validation/validation.middleware.js';
 import * as controller from './shipping.controller.js';
 import { z } from 'zod';
 export const shippingRouter = Router();
-const booking = z.object({ pickupBranch: z.string().trim().min(1).max(120).optional(), destinationBranch: z.string().trim().min(1).max(120).optional(), deliveryType: z.enum(['Door2Door', 'Branch2Door', 'Branch2Branch', 'Door2Branch']).default('Door2Door'), packageDescription: z.string().trim().max(500).optional(), weightGrams: z.number().int().min(1).max(50_000).optional(), collectionAmount: z.string().regex(/^\d{1,10}(?:\.\d{1,2})?$/).optional() });
+const booking = z.object({ pickupBranch: z.string().trim().min(1).max(120).optional(), destinationBranch: z.string().trim().min(1).max(120).optional(), deliveryType: z.enum(['Door2Door', 'Branch2Door', 'Branch2Branch', 'Door2Branch']).optional(), packageDescription: z.string().trim().max(500).optional(), weightGrams: z.number().int().min(1).max(50_000).optional(), collectionAmount: z.string().regex(/^\d{1,10}(?:\.\d{1,2})?$/).optional() });
 shippingRouter.get('/shipping/branches', controller.branches);
 shippingRouter.get('/shipping/quote', validateRequest({ query: z.object({ branch: z.string().trim().min(1).max(120) }) }), controller.quote);
 shippingRouter.post('/admin/orders/:id/shipment/ncm', requireAuth, requireRole(['admin']), validateRequest({ params: z.object({ id: z.string().min(1).max(128) }), body: booking }), controller.book);

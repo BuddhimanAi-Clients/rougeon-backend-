@@ -66,3 +66,29 @@ test('quoteDelivery adds the store charge to the live courier rate', async (cont
   rateFails = true;
   await assert.rejects(rates.quoteDelivery('BIRATNAGAR'), { code: 'SHIPPING_RATE_UNAVAILABLE' });
 });
+
+test('quoteDeliveryOptions prices home delivery and branch collection separately', async (context) => {
+  const types: string[] = [];
+  let branchRate = '120.00';
+  context.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/api/v2/branches') return Response.json([{ name: 'BIRATNAGAR', district_name: 'Morang' }, { name: 'TINKUNE', district_name: 'Kathmandu' }]);
+    const type = url.searchParams.get('type') ?? '';
+    types.push(type);
+    return Response.json({ charge: type === 'D2B' ? branchRate : '170.00' });
+  });
+
+  const options = await rates.quoteDeliveryOptions('biratnagar');
+  assert.deepEqual(options.map((option) => [option.deliveryType, option.total.toFixed(2)]), [['Door2Door', '185.00'], ['Door2Branch', '135.00']]);
+  assert.deepEqual(types, ['Pickup/Collect', 'D2B']);
+
+  const branch = await rates.quoteDelivery('BIRATNAGAR', 'Door2Branch');
+  assert.equal(branch.deliveryFee.toFixed(2), '120.00');
+  assert.equal(branch.total.toFixed(2), '135.00');
+
+  // NCM answers 0 for a service it does not price: never offer that for free.
+  branchRate = '0';
+  const fallback = await rates.quoteDeliveryOptions('TINKUNE');
+  assert.deepEqual(fallback.map((option) => option.deliveryType), ['Door2Door']);
+  await assert.rejects(rates.quoteDelivery('TINKUNE', 'Door2Branch'), { code: 'SHIPPING_RATE_UNAVAILABLE' });
+});

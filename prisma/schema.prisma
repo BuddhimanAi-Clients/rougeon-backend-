@@ -379,6 +379,7 @@ model Order {
   shippingDeliveryFee Decimal          @default(0) @db.Decimal(12, 2)
   shippingPickupFee Decimal            @default(0) @db.Decimal(12, 2)
   shippingBranch    String?
+  shippingDeliveryType String        @default("Door2Door")
   total             Decimal            @db.Decimal(12, 2)
   advancePaymentAmount Decimal         @default(0) @db.Decimal(12, 2)
   codCollectionAmount Decimal          @default(0) @db.Decimal(12, 2)

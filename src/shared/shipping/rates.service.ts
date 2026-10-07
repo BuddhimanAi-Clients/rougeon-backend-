@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { envVariables } from '../../configs/env.config.js';
 import { AppError } from '../errors/app-error.js';
+import { DEFAULT_DELIVERY_TYPE, type DeliveryType } from './delivery-types.js';
 
 // Nepal Can Move publishes its branch list and rate calculator without a
 // token, so quoting works even before the vendor token is configured.
@@ -9,6 +10,12 @@ const DEFAULT_PICKUP_BRANCH = 'CHABAHIL';
 const BRANCH_TTL_MS = 12 * 60 * 60 * 1000;
 const RATE_TTL_MS = 6 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 8_000;
+
+// NCM's rate calculator names the same two services differently.
+const RATE_TYPE: Record<DeliveryType, string> = {
+  Door2Door: 'Pickup/Collect',
+  Door2Branch: 'D2B',
+};
 
 export type DeliveryBranch = {
   name: string;
@@ -19,6 +26,7 @@ export type DeliveryBranch = {
 
 export type DeliveryQuote = {
   branch: string | null;
+  deliveryType: DeliveryType;
   // What the courier charges for the parcel.
   deliveryFee: Prisma.Decimal;
   // ROGUEON's own collection charge. Never itemised for customers.
@@ -126,14 +134,14 @@ export async function normalizeBranch(name: string | null | undefined) {
   return resolveBranch(name);
 }
 
-async function ncmCharge(destination: string) {
+async function ncmCharge(destination: string, deliveryType: DeliveryType) {
   const origin = pickupBranch();
-  const key = `${origin}>${destination}`.toUpperCase();
+  const key = `${origin}>${destination}>${deliveryType}`.toUpperCase();
   const cached = rateCache.get(key);
   if (cached && Date.now() - cached.at < RATE_TTL_MS) return cached.charge;
   try {
     const charge = parseCharge(
-      await ncmJson('/api/v1/shipping-rate', { creation: origin, destination, type: 'Pickup/Collect' }),
+      await ncmJson('/api/v1/shipping-rate', { creation: origin, destination, type: RATE_TYPE[deliveryType] }),
     );
     if (!charge) throw new Error('NCM returned no charge');
     rateCache.set(key, { at: Date.now(), charge });
@@ -144,16 +152,35 @@ async function ncmCharge(destination: string) {
   }
 }
 
-export async function quoteDelivery(branch: string | null | undefined): Promise<DeliveryQuote> {
+export async function quoteDelivery(
+  branch: string | null | undefined,
+  deliveryType: DeliveryType = DEFAULT_DELIVERY_TYPE,
+): Promise<DeliveryQuote> {
   const pickupFee = new Prisma.Decimal(envVariables.NCM_PICKUP_FEE);
   if (envVariables.SHIPPING_RATE_MODE === 'flat') {
+    // One fixed fee has no cheaper branch option, so it is always home delivery.
     const deliveryFee = new Prisma.Decimal(envVariables.SHIPPING_FEE);
-    return { branch: branch?.trim() || null, deliveryFee, pickupFee, total: deliveryFee.plus(pickupFee) };
+    return { branch: branch?.trim() || null, deliveryType: DEFAULT_DELIVERY_TYPE, deliveryFee, pickupFee, total: deliveryFee.plus(pickupFee) };
   }
   if (!branch?.trim()) {
     throw new AppError(422, 'DELIVERY_AREA_REQUIRED', 'Choose your delivery area to continue');
   }
   const resolved = await resolveBranch(branch);
-  const deliveryFee = new Prisma.Decimal(await ncmCharge(resolved));
-  return { branch: resolved, deliveryFee, pickupFee, total: deliveryFee.plus(pickupFee) };
+  const deliveryFee = new Prisma.Decimal(await ncmCharge(resolved, deliveryType));
+  return { branch: resolved, deliveryType, deliveryFee, pickupFee, total: deliveryFee.plus(pickupFee) };
+}
+
+/**
+ * Every way the customer can receive the parcel in this area, home delivery
+ * first. Branch collection is simply left out when the courier has no rate
+ * for it, so checkout never stalls on the optional choice.
+ */
+export async function quoteDeliveryOptions(branch: string | null | undefined): Promise<DeliveryQuote[]> {
+  const home = await quoteDelivery(branch, 'Door2Door');
+  if (envVariables.SHIPPING_RATE_MODE === 'flat') return [home];
+  try {
+    return [home, await quoteDelivery(home.branch, 'Door2Branch')];
+  } catch {
+    return [home];
+  }
 }

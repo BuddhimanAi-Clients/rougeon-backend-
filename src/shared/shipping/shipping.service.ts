@@ -8,7 +8,7 @@ import { changeInventory } from '../inventory/inventory.service.js';
 import * as repository from './shipping.repository.js';
 import { pickupBranch as defaultPickupBranch } from './rates.service.js';
 
-type BookingInput = { pickupBranch?: string; destinationBranch?: string; deliveryType: string; packageDescription?: string; weightGrams?: number; collectionAmount?: string };
+type BookingInput = { pickupBranch?: string; destinationBranch?: string; deliveryType?: string | undefined; packageDescription?: string; weightGrams?: number; collectionAmount?: string };
 type WebhookInput = { order_id?: string; order_ids?: string[]; status?: string; event?: string; timestamp?: string; test?: boolean };
 
 function safeMessage(error: unknown) { return error instanceof Error ? error.message.slice(0, 500) : 'Courier booking failed'; }
@@ -37,13 +37,13 @@ export async function bookNcmShipment(orderId: string, input: BookingInput) {
     // Falls back to the delivery area the customer picked at checkout.
     destinationBranch = input.destinationBranch ?? order.shippingBranch ?? '';
     if (!destinationBranch) throw new AppError(422, 'DESTINATION_BRANCH_REQUIRED', 'Choose the Nepal Can Move destination branch for this order');
-    return repository.createPendingShipment(tx, { orderId, pickupBranch, destinationBranch, deliveryType: input.deliveryType, ...(input.packageDescription ? { packageDescription: input.packageDescription } : {}), ...(input.weightGrams ? { weightGrams: input.weightGrams } : {}), collectionAmount: order.paymentMethod === 'cod' ? order.codCollectionAmount : new Prisma.Decimal(input.collectionAmount ?? '0') });
+    return repository.createPendingShipment(tx, { orderId, pickupBranch, destinationBranch, deliveryType: input.deliveryType ?? order.shippingDeliveryType, ...(input.packageDescription ? { packageDescription: input.packageDescription } : {}), ...(input.weightGrams ? { weightGrams: input.weightGrams } : {}), collectionAmount: order.paymentMethod === 'cod' ? order.codCollectionAmount : new Prisma.Decimal(input.collectionAmount ?? '0') });
   });
   try {
     const order = await repository.runTransaction((tx) => repository.orderForBooking(tx, orderId));
     if (!order) throw new Error('Order disappeared during courier booking');
     const collectionAmount = order.paymentMethod === 'cod' ? order.codCollectionAmount.toFixed(2) : input.collectionAmount ?? '0';
-    const response = await fetch(new URL('/api/v1/order/create', envVariables.NCM_API_BASE_URL), { method: 'POST', headers: { Authorization: `Token ${envVariables.NCM_API_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: order.guestName, phone: order.guestPhone, address: order.guestFullAddress, fbranch: pickupBranch, branch: destinationBranch, package: input.packageDescription ?? `ROGUEON ${order.orderNumber}`, vref_id: order.orderNumber, delivery_type: input.deliveryType, weight: input.weightGrams ? Math.max(1, input.weightGrams / 1000) : 1, cod_charge: collectionAmount }) });
+    const response = await fetch(new URL('/api/v1/order/create', envVariables.NCM_API_BASE_URL), { method: 'POST', headers: { Authorization: `Token ${envVariables.NCM_API_TOKEN}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: order.guestName, phone: order.guestPhone, address: order.guestFullAddress, fbranch: pickupBranch, branch: destinationBranch, package: input.packageDescription ?? `ROGUEON ${order.orderNumber}`, vref_id: order.orderNumber, delivery_type: pending.deliveryType, weight: input.weightGrams ? Math.max(1, input.weightGrams / 1000) : 1, cod_charge: collectionAmount }) });
     const payload = await response.json().catch(() => ({})) as { orderid?: string | number; message?: string };
     if (!response.ok || !payload.orderid) throw new Error(payload.message ?? `NCM responded ${response.status}`);
     return repository.runTransaction(async (tx) => {
