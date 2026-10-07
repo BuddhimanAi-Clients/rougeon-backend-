@@ -91,7 +91,7 @@ export async function setCategoryImage(id: string, file: Express.Multer.File | u
   const category = await categoryRepository.findCategory(id);
   if (!category) throw new AppError(404, 'CATEGORY_NOT_FOUND', 'Category was not found');
   if (!file) throw new AppError(400, 'IMAGE_REQUIRED', 'Select an image');
-  const image = await inspectImage(file, MAX_CATEGORY_IMAGE_BYTES);
+  const image = await inspectImage(file, MAX_CATEGORY_IMAGE_BYTES, { pngOnly: true });
   const objectKey = createObjectKey(`categories/${id}`, image.extension);
   await uploadImage(objectKey, image);
   try {

@@ -87,7 +87,10 @@ export type ImportPlan = {
   };
 };
 
-const IMAGE_FILE = /\.(jpe?g|png|webp)$/i;
+// Catalogue photos must be PNG. Other picture formats are an error the
+// admin must fix; files that are not pictures at all are simply skipped.
+const PNG_FILE = /\.png$/i;
+const OTHER_PICTURE = /\.(jpe?g|webp|gif|bmp|tiff?|heic|heif|avif|svg)$/i;
 const MONEY = /^\d{1,10}(?:\.\d{1,2})?$/;
 
 function text(value: unknown) {
@@ -311,9 +314,13 @@ export function planImport(
   const reported = new Set<string>();
   const once = (key: string, issue: ImportIssue) => { if (!reported.has(key)) { reported.add(key); warnings.push(issue); } };
   for (const photo of photosInput) {
-    if (!IMAGE_FILE.test(photo.file)) {
+    if (!PNG_FILE.test(photo.file)) {
       notAttached += 1;
-      once(`type:${photo.path}`, { row: null, field: 'Photos', message: `"${photo.path}" is not a JPEG, PNG or WebP image and will be skipped` });
+      if (OTHER_PICTURE.test(photo.file)) {
+        errors.push({ row: null, field: 'Photos', message: `"${photo.path}" is not a PNG. Photos must be PNG: save or export it as PNG and replace this file.` });
+      } else {
+        once(`type:${photo.path}`, { row: null, field: 'Photos', message: `"${photo.path}" is not a photo and will be skipped` });
+      }
       continue;
     }
     const folder = normalizeName(photo.product);

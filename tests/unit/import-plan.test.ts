@@ -23,13 +23,13 @@ test('rows group into one product with generated slug and SKUs', () => {
 test('existing categories, products and variants are reused, never duplicated', () => {
   const existing: ExistingCatalog = {
     categories: [{ id: 'c1', name: 'Hoodie', slug: 'hoodie' }],
-    products: [{ id: 'p1', name: 'Project Requiem Zipup', slug: 'project-requiem-zipup', variants: [{ id: 'v1', sku: 'OLD-SKU', size: 'M', color: 'Grey' }], media: [{ color: 'Grey', sourceName: '1.jpg' }] }],
+    products: [{ id: 'p1', name: 'Project Requiem Zipup', slug: 'project-requiem-zipup', variants: [{ id: 'v1', sku: 'OLD-SKU', size: 'M', color: 'Grey' }], media: [{ color: 'Grey', sourceName: '1.png' }] }],
     skus: ['OLD-SKU'],
     colours: ['Grey'],
   };
   const plan = planImport(
     [row(2, { category: 'hoodie', price: '4,800' }), row(3, { size: 'L', description: '' })],
-    [{ path: 'photos/Project Requiem Zipup/Grey/1.jpg', product: 'Project Requiem Zipup', colour: 'Grey', file: '1.jpg' }, { path: 'photos/Project Requiem Zipup/Grey/2.jpg', product: 'Project Requiem Zipup', colour: 'Grey', file: '2.jpg' }],
+    [{ path: 'photos/Project Requiem Zipup/Grey/1.png', product: 'Project Requiem Zipup', colour: 'Grey', file: '1.png' }, { path: 'photos/Project Requiem Zipup/Grey/2.png', product: 'Project Requiem Zipup', colour: 'Grey', file: '2.png' }],
     existing,
   );
   assert.deepEqual(plan.errors, []);
@@ -69,15 +69,15 @@ test('photo folders match products and colours, and report what is left over', (
   const plan = planImport(
     [row(2), row(3, { colour: 'Black' })],
     [
-      { path: 'photos/Project Requiem Zipup/1.jpg', product: 'Project Requiem Zipup', colour: null, file: '1.jpg' },
-      { path: 'photos/project requiem zip-up/Gray/1.jpg', product: 'project requiem zip-up', colour: 'Gray', file: '1.jpg' },
-      { path: 'photos/Project Requiem Zipup/Red/1.jpg', product: 'Project Requiem Zipup', colour: 'Red', file: '1.jpg' },
-      { path: 'photos/Unknown Tee/1.jpg', product: 'Unknown Tee', colour: null, file: '1.jpg' },
+      { path: 'photos/Project Requiem Zipup/1.png', product: 'Project Requiem Zipup', colour: null, file: '1.png' },
+      { path: 'photos/project requiem zip-up/Gray/1.png', product: 'project requiem zip-up', colour: 'Gray', file: '1.png' },
+      { path: 'photos/Project Requiem Zipup/Red/1.png', product: 'Project Requiem Zipup', colour: 'Red', file: '1.png' },
+      { path: 'photos/Unknown Tee/1.png', product: 'Unknown Tee', colour: null, file: '1.png' },
       { path: 'photos/Project Requiem Zipup/notes.txt', product: 'Project Requiem Zipup', colour: null, file: 'notes.txt' },
     ],
     empty,
   );
-  assert.deepEqual(plan.products[0]!.photos.map((photo) => [photo.colour, photo.file]), [[null, '1.jpg'], ['Grey', '1.jpg']]);
+  assert.deepEqual(plan.products[0]!.photos.map((photo) => [photo.colour, photo.file]), [[null, '1.png'], ['Grey', '1.png']]);
   assert.equal(plan.summary.photos.notAttached, 3);
   assert.equal(plan.errors.length, 0);
 });
@@ -85,4 +85,21 @@ test('photo folders match products and colours, and report what is left over', (
 test('a new product needs a description and one category', () => {
   const plan = planImport([row(2, { description: '' }), row(3, { description: '', size: 'L', category: 'Polo' })], [], empty);
   assert.deepEqual(plan.errors.map((issue) => issue.field).sort(), ['Category', 'Description']);
+});
+
+test('photos that are not PNG block the import; non-pictures are only skipped', () => {
+  const plan = planImport(
+    [row(2)],
+    [
+      { path: 'photos/Project Requiem Zipup/Grey/1.png', product: 'Project Requiem Zipup', colour: 'Grey', file: '1.png' },
+      { path: 'photos/Project Requiem Zipup/Grey/2.jpg', product: 'Project Requiem Zipup', colour: 'Grey', file: '2.jpg' },
+      { path: 'photos/Project Requiem Zipup/Grey/3.WEBP', product: 'Project Requiem Zipup', colour: 'Grey', file: '3.WEBP' },
+      { path: 'photos/Project Requiem Zipup/readme.txt', product: 'Project Requiem Zipup', colour: null, file: 'readme.txt' },
+    ],
+    empty,
+  );
+  assert.deepEqual(plan.errors.map((issue) => issue.field), ['Photos', 'Photos']);
+  assert.match(plan.errors[0]!.message, /2\.jpg" is not a PNG/);
+  assert.deepEqual(plan.products[0]!.photos.map((photo) => photo.file), ['1.png']);
+  assert.equal(plan.warnings.some((issue) => /readme\.txt/.test(issue.message)), true);
 });
